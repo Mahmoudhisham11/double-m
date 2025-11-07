@@ -84,7 +84,7 @@ function Resete() {
       </div>
 
       <div className={styles.text}>
-        <p>عدد الاصناف:<span style={{border: '2px solid black', padding: "5px"}}>{invoice.length}</span></p>
+        <p>عدد الاصناف:<span>{invoice.length}</span></p>
         <p>العنوان: 1 جول جمال الف مسكن</p>
         <p style={{ textAlign: 'center', marginTop: '5px'}}>شكراً لتعاملكم معنا!</p>
       </div>

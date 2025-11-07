@@ -102,7 +102,6 @@
 
 /* Print styles */
 @media print {
-
     .resete {
         width: 58mm; /* عرض الورقة الحرارية */
         margin: 0 auto; /* تمركز الفاتورة في النص */
@@ -113,14 +112,15 @@
     }
 
     .invoice {
-        width: 100%;
-        max-width: 58mm;
-        margin: 0 auto;
-        padding: 2mm;
-        border: none;
-        text-align: center; /* تمركز كل المحتوى */
-        box-sizing: border-box;
-    }
+    width: 100%;
+    max-width: 58mm;
+    margin: 0 auto;
+    padding: 0; /* قلل البادينج */
+    box-sizing: border-box;
+    text-align: center;
+    height: auto; /* أهم حاجة */
+}
+
 
     .invoice h3, 
     .invoice p, 
