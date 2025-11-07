@@ -413,93 +413,104 @@ function Products() {
   };
 
   const handlePrintLabel = (product) => {
-    const printWindow = window.open('', '', 'width=400,height=300');
-    const htmlContent = `
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1" />
-          <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-          <style>
-            @media print {
-              @page {
-                size: auto;
-                margin: 0;
-              }
-              body {
-                margin: 0;
-                padding: 0;
-              }
+  const printWindow = window.open('', '', 'width=300,height=200');
+  const htmlContent = `
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+        <style>
+          /* ✅ إعدادات الورقة */
+          @media print {
+            @page {
+              size: 58mm auto; /* مقاس ورق الطابعة الحرارية */
+              margin: 0;
             }
-            .label {
-              width: 100%;
-              height: 100%;
-              box-sizing: border-box;
-              padding: 2mm;
-              display: flex;
-              flex-direction: column;
-              justify-content: center;
-              align-items: center;
-              font-family: Arial, sans-serif;
-              font-size: 8pt;
-              gap: 1mm;
-              page-break-inside: avoid;
-              overflow: hidden;
-              text-align: center;
+            body {
+              margin: 0;
+              padding: 0;
+              background: none;
             }
-            .name {
-              max-width: 100%;
-              font-weight: 600;
-              line-height: 1.1;
-              overflow: hidden;
-              text-overflow: ellipsis;
-              white-space: nowrap;
-            }
-            .content {
-              display: flex;
-              gap: 2mm;
-              flex-wrap: wrap;
-              justify-content: center;
-              align-items: center;
-              font-size: 7pt;
-            }
-            /* حجم الباركود أكبر شوي */
-            svg.barcode {
-              width: 40mm;
-              height: 12mm;/* ✅ زودنا الارتفاع */
-            }
-            .barcode rect, .barcode path { shape-rendering: crispEdges; }
-          </style>
-        </head>
-        <body>
-          <div class="label">
-            <div class="name">${product.name ?? ''}</div>
-            <div class="content">
-              <div><strong>سعر البيع:</strong> ${product.sellPrice ?? ''} EGP</div>
-              <div><strong>الكود:</strong> ${product.code ?? ''}</div>
-            </div>
-            <svg id="barcode" class="barcode"></svg>
-          </div>
+          }
 
-          <script>
-            window.onload = function () {
-              JsBarcode("#barcode", "${'${product.code}'}", {
-                format: "CODE128",
-                displayValue: false,
-                margin: 0
-              });
-              setTimeout(() => {
-                window.print();
-                window.onafterprint = () => window.close();
-              }, 100);
-            };
-          </script>
-        </body>
-      </html>
-    `;
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-  };
+          body {
+            width: 58mm;
+            margin: 0 auto;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            text-align: center;
+          }
+
+          .label {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 2mm 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 9pt;
+            text-align: center;
+          }
+
+          .name {
+            font-weight: 600;
+            font-size: 9pt;
+            line-height: 1.1;
+            margin-bottom: 2mm;
+            word-wrap: break-word;
+          }
+
+          .content {
+            font-size: 8pt;
+            line-height: 1.2;
+            margin-bottom: 2mm;
+          }
+
+          /* ✅ حجم الباركود مضبوط للطابعة */
+          svg.barcode {
+            width: 48mm;
+            height: 13mm;
+            display: block;
+            margin: 0 auto;
+          }
+
+          .barcode rect, .barcode path {
+            shape-rendering: crispEdges;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="label">
+          <div class="name">${product.name ?? ''}</div>
+          <div class="content">
+            <div><strong>سعر:</strong> ${product.sellPrice ?? ''} EGP</div>
+            <div><strong>كود:</strong> ${product.code ?? ''}</div>
+          </div>
+          <svg id="barcode" class="barcode"></svg>
+        </div>
+
+        <script>
+          window.onload = function () {
+            JsBarcode("#barcode", "${product.code}", {
+              format: "CODE128",
+              displayValue: false,
+              margin: 0
+            });
+            setTimeout(() => {
+              window.print();
+              window.onafterprint = () => window.close();
+            }, 200);
+          };
+        </script>
+      </body>
+    </html>
+  `;
+  printWindow.document.write(htmlContent);
+  printWindow.document.close();
+};
+
 
   return (
     <div className={styles.products}>
