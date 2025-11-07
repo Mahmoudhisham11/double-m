@@ -1094,7 +1094,7 @@ function Main() {
             </div>
             <div className={styles.card}>
               <h4>إجمالي المصروفات</h4>
-              <p>{totalMa} جنيه</p>
+              <p>{totalMasrofat} جنيه</p>
             </div>
             <div className={styles.card}>
               <h4>أنشط موظف</h4>
