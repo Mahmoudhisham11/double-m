@@ -104,66 +104,63 @@
 @media print {
 
     .resete {
-        background: none;
-        width: 100%;
-        height: 100vh; /* طول الصفحة بالكامل */
-        margin: 0;
+        width: 58mm; /* عرض الورقة الحرارية */
+        margin: 0 auto; /* تمركز الفاتورة في النص */
         padding: 0;
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-start; /* يبدأ من الأعلى */
-        align-items: center;
-    }
-
-    .btn, .btnBack {
-        display: none; /* إخفاء الأزرار */
+        display: block;
+        background: none;
+        text-align: center; /* تمركز النصوص */
     }
 
     .invoice {
-        max-width: 384px;
         width: 100%;
-        padding: 5px;
-        font-size: 12px;
-        box-sizing: border-box;
+        max-width: 58mm;
+        margin: 0 auto;
+        padding: 2mm;
         border: none;
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-start; /* العناصر قريبة من بعض */
+        text-align: center; /* تمركز كل المحتوى */
+        box-sizing: border-box;
     }
 
-    .invoice h3 {
-        margin: 2px 0;
-        font-size: 14px;
-    }
-
-    .invoice p {
-        margin: 1px 0; /* مسافات صغيرة بين العناصر */
-        font-size: 12px;
+    .invoice h3, 
+    .invoice p, 
+    .invoice table, 
+    .invoice tfoot td {
+        text-align: center !important; /* تأكيد التمركز */
     }
 
     .invoice table {
         width: 100%;
-        border-collapse: collapse;
-        font-size: 12px;
         margin: 2px 0;
+        border-collapse: collapse;
     }
 
     .invoice th, .invoice td {
         border: 1px solid black;
-        padding: 1px 3px;
-        text-align: right;
+        padding: 2px 4px;
         font-size: 12px;
     }
 
-    .invoice tfoot td {
-        border-top: 2px solid black;
-        font-weight: bold;
-        font-size: 12px;
+    .invoice img, .invoice .barcode {
+        display: block;
+        margin: 0 auto;
+        max-width: 100%;
+        height: auto;
+    }
+
+    .btn, .btnBack {
+        display: none; /* إخفاء الأزرار أثناء الطباعة */
     }
 
     .footer {
         text-align: center;
         font-size: 12px;
-        margin-top: 2px;
+        margin-top: 5px;
+    }
+    .btn{
+        display: none;
+    }
+    .btnBack {
+        display: none;
     }
 }
