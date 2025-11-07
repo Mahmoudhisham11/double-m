@@ -1,0 +1,330 @@
+.balance {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+  background-color: #f5f6fa;
+  color: #333;
+}
+
+.content {
+  width: 100%;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  position: relative;
+}
+
+.title h2 {
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.tabsRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tabBtn {
+  padding: 10px 20px;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  border: 1px solid #ddd;
+  transition: 0.3s;
+}
+
+.tabBtn:hover {
+  background: #eaf3ff;
+}
+
+.activeTab {
+  background: #007bff;
+  color: #fff;
+  border-color: #007bff;
+}
+
+.balanceCardRow {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.balanceCard {
+  background: #fff;
+  flex: 1;
+  min-width: 250px;
+  border-radius: 15px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+.balanceValue {
+  font-size: 22px;
+  font-weight: bold;
+  color: #007bff;
+}
+
+.cardActions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.primaryBtn,
+.secondaryBtn {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.primaryBtn {
+  background: #007bff;
+  color: #fff;
+}
+
+.primaryBtn:hover {
+  background: #0056b3;
+}
+
+.secondaryBtn {
+  background: #ddd;
+}
+
+.secondaryBtn:hover {
+  background: #bbb;
+}
+
+.operationsTable table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.operationsTable th,
+.operationsTable td {
+  border: 1px solid #eee;
+  padding: 10px;
+  text-align: center;
+}
+.tableWrap {
+    overflow-x: auto;
+}
+.editBtn {
+  background: none;
+  border: none;
+  color: #28a745;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.deleteBtn {
+  background: none;
+  border: none;
+  color: #dc3545;
+  cursor: pointer;
+  font-size: 18px;
+  margin-left: 5px;
+}
+
+/* 🎨 Popup Styling */
+.popupOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+.popup {
+  background: #fff;
+  border-radius: 15px;
+  padding: 25px 30px;
+  width: 400px;
+  max-width: 90%;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  animation: slideUp 0.25s ease-in-out;
+}
+
+.popup h3 {
+  text-align: center;
+  margin-bottom: 20px;
+  color: #007bff;
+  font-weight: 600;
+  font-size: 20px;
+}
+
+.popup label {
+  display: block;
+  margin: 10px 0 5px;
+  font-weight: 500;
+  font-size: 14px;
+  color: #444;
+}
+
+.popup input,
+.popup select,
+.popup textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  outline: none;
+  font-size: 14px;
+  transition: 0.2s;
+  background-color: #fafafa;
+}
+
+.popup input:focus,
+.popup select:focus,
+.popup textarea:focus {
+  border-color: #007bff;
+  background-color: #fff;
+}
+
+.popup textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.popupActions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 20px;
+}
+
+.popupActions button {
+  flex: 1;
+  margin: 0 5px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-top: 5px;
+}
+
+.dangerBtn {
+  background: #dc3545;
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.dangerBtn:hover {
+  background: #b52b38;
+}
+
+/* ✨ Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* 📱 تنسيق خاص للشاشات الصغيرة فقط */
+@media (max-width: 768px) {
+  .content {
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .title h2 {
+    font-size: 20px;
+    text-align: center;
+  }
+
+  .tabsRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .tabBtn {
+    width: 100%;
+    text-align: center;
+    padding: 8px;
+  }
+
+  .balanceCardRow {
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .balanceCard {
+    min-width: 100%;
+    padding: 15px;
+  }
+
+  .balanceValue {
+    font-size: 18px;
+  }
+
+  .operationsTable table {
+    font-size: 13px;
+  }
+
+  .popup {
+    width: 95%;
+    padding: 20px;
+  }
+
+  .popup h3 {
+    font-size: 18px;
+  }
+
+  .popup input,
+  .popup select,
+  .popup textarea {
+    font-size: 13px;
+  }
+
+  .popupActions {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .popupActions button {
+    margin: 0;
+    width: 100%;
+  }
+
+  .row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}

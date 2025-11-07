@@ -1,0 +1,75 @@
+.masrofat {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    justify-content: start;
+    align-items: start;
+}
+.btns {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    padding: 30px 1%;
+}
+.btns button {
+    width: 50%;
+    height: 50px;
+    font-size: 20px;
+    background-color: var(--main-color);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: .3s;
+}
+.btns button:hover {
+    background-color: var(--hover-color);
+}
+.content {
+    width: 100%;
+}
+.masrofatContent {
+    width: 100%;
+    padding: 1%;
+}
+.tableContainer {
+    width: 100%;
+}
+.addMasrofat {
+    width: 100%;
+    padding: 1%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    gap: 10px;
+}
+.addBtn {
+    width: 100%;
+    height: 50px;
+    background-color: var(--main-color);
+    border: none;
+    font-size: 20px;
+    color: white;
+    border-radius: 8px;
+    cursor: pointer;
+    padding: 5px;
+    margin-top: 50px;
+    transition: .3s;
+}
+.addBtn:hover {
+    background-color: var(--hover-color);
+}
+.total {
+    width: 100%;
+    padding: 1%;
+}
+.delBtn {
+    background-color: transparent;
+    color: red;
+    font-size: 20px;
+    border: none;
+    cursor: pointer;
+}

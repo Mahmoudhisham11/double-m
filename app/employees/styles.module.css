@@ -1,0 +1,117 @@
+.employees {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    justify-content: start;
+    align-items: start;
+}
+.content {
+    width: 100%;
+}
+.btns {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    padding: 30px 1%;
+}
+.btns button {
+    width: 50%;
+    height: 50px;
+    font-size: 20px;
+    background-color: var(--main-color);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: .3s;
+}
+.btns button:hover {
+    background-color: var(--hover-color);
+}
+.total {
+    width: 100%;
+    display: flex;
+    justify-content: start;
+    align-items: start;
+    flex-direction: column;
+    gap: 10px;
+    padding: 1%;
+}
+.employeesContent {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 1%;
+}
+.tableContainer {
+    width: 100%;
+}
+.addEmployees {
+    width: 100%;
+    padding: 1%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    gap: 10px;
+}
+.addBtn {
+    width: 100%;
+    height: 50px;
+    background-color: var(--main-color);
+    border: none;
+    font-size: 20px;
+    color: white;
+    border-radius: 8px;
+    cursor: pointer;
+    padding: 5px;
+    margin-top: 50px;
+    transition: .3s;
+}
+.addBtn:hover {
+    background-color: var(--hover-color);
+}
+.actions {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+.deleteBtn {
+    width: 35px;
+    height: 35px;
+    border-radius: 8px;
+    font-size: 20px;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(243, 83, 83, 0.411);
+    color: red;
+    transition: .3s ;
+}
+.deleteBtn:hover {
+    background-color: red;
+    color: white;
+}
+.reportBtn {
+    width: 35px;
+    height: 35px;
+    border-radius: 8px;
+    font-size: 20px;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #3570aa33;
+    color: #3570aa;
+    transition: .3s ;
+}
+.reportBtn:hover {
+    background-color: var(--main-color);
+    color: white;
+}
