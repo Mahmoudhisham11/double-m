@@ -15,7 +15,9 @@ import {
   doc,
   query,
   where,
-  getDocs
+  getDocs,
+  getDoc,
+  updateDoc
 } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
@@ -34,6 +36,12 @@ function Debts() {
     dateInput: "",
   });
   const [customers, setCustomers] = useState([]);
+
+  // --- payment modal state (NEW)
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentCustomer, setPaymentCustomer] = useState(null);
+  const [processingPayment, setProcessingPayment] = useState(false);
 
   const shop =
     typeof window !== "undefined" ? localStorage.getItem("shop") : "";
@@ -80,11 +88,7 @@ function Debts() {
   const handleAddProduct = async () => {
     if (
       !form.name ||
-      !form.phone ||
-      !form.debt ||
-      !form.debtType ||
-      !form.debtDirection ||
-      !form.dateInput
+      !form.phone
     ) {
       alert("يرجى ملء كل الحقول");
       return;
@@ -119,6 +123,82 @@ function Debts() {
   const filteredCustomers = customers.filter((c) =>
     c.name.toLowerCase().includes(searchCode.toLowerCase())
   );
+
+  // ===== New: open payment modal for a customer
+  const openPaymentModal = (customer) => {
+    setPaymentCustomer(customer);
+    setPaymentAmount(""); // reset
+    setShowPaymentModal(true);
+  };
+
+  const closePaymentModal = () => {
+    setShowPaymentModal(false);
+    setPaymentCustomer(null);
+    setPaymentAmount("");
+    setProcessingPayment(false);
+  };
+
+  // ===== New: handle confirming the payment
+  const handleConfirmPayment = async () => {
+    if (!paymentCustomer) return;
+    const paid = Number(paymentAmount);
+    if (!paid || paid <= 0 || isNaN(paid)) {
+      alert("الرجاء إدخال مبلغ سداد صالح أكبر من صفر");
+      return;
+    }
+
+    setProcessingPayment(true);
+
+    try {
+      const debtRef = doc(db, "debts", paymentCustomer.id);
+      const debtSnap = await getDoc(debtRef);
+
+      if (!debtSnap.exists()) {
+        alert("لم يتم العثور على بيانات الدين — ربما حُذف بالفعل.");
+        setProcessingPayment(false);
+        closePaymentModal();
+        return;
+      }
+
+      const debtData = debtSnap.data();
+      const previousDebt = Number(debtData.debt || 0);
+      if (paid > previousDebt) {
+        alert(`المبلغ أكبر من الدين الحالي (${previousDebt} EGP). الرجاء إدخال مبلغ مناسب أو خصم الفارق.`);
+        setProcessingPayment(false);
+        return;
+      }
+
+      const remainingDebt = previousDebt - paid;
+
+      // update or delete debt doc
+      if (remainingDebt <= 0) {
+        // حذف المستند لأن الدين سدد بالكامل
+        await deleteDoc(debtRef);
+      } else {
+        // تحديث قيمة الدين
+        await updateDoc(debtRef, { debt: remainingDebt });
+      }
+
+      // تسجيل الدفعة في collection جديدة: debtsPayments
+      await addDoc(collection(db, "debtsPayments"), {
+        name: debtData.name || paymentCustomer.name || "",
+        phone: debtData.phone || paymentCustomer.phone || "",
+        paidAmount: paid,
+        previousDebt: previousDebt,
+        remainingDebt: remainingDebt,
+        date: new Date(),
+        shop: shop,
+      });
+
+      alert("✅ تم تسجيل السداد وتحديث الدين بنجاح");
+      // refresh local state handled by onSnapshot listener
+      closePaymentModal();
+    } catch (err) {
+      console.error("خطأ أثناء معالجة السداد:", err);
+      alert("❌ حدث خطأ أثناء معالجة السداد، حاول مرة أخرى");
+      setProcessingPayment(false);
+    }
+  };
 
   if (loading) return <p>🔄 جاري التحقق...</p>;
   if (!auth) return null;
@@ -159,7 +239,7 @@ function Debts() {
 
           <div className={styles.tableContainer}>
             <table>
-              <thead>
+              <thead>      
                 <tr>
                   <th>الاسم</th>
                   <th>رقم الهاتف</th>
@@ -168,6 +248,7 @@ function Debts() {
                   <th>الدين لمين</th>
                   <th>تاريخ الدين</th>
                   <th>تاريخ الإضافة</th>
+                  <th>سداد</th>
                   <th>حذف</th>
                 </tr>
               </thead>
@@ -184,9 +265,32 @@ function Debts() {
                       {customer.date?.toDate().toLocaleDateString("ar-EG")}
                     </td>
                     <td>
+                      {/* NEW: سداد button */}
+                      <button
+                        className={styles.payBtn}
+                        onClick={() => openPaymentModal(customer)}
+                        style={{
+                          padding: "6px 10px",
+                          borderRadius: 8,
+                          border: "none",
+                          background: "#198754",
+                          color: "white",
+                          cursor: "pointer",
+                          transition: "transform .12s ease"
+                        }}
+                        onMouseDown={(e) => e.currentTarget.style.transform = "scale(0.98)"}
+                        onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
+                      >
+                        سداد
+                      </button>
+                    </td>
+                    <td>
                       <button
                         className={styles.delBtn}
-                        onClick={() => handleDelete(customer.id)}
+                        onClick={() => {
+                          const ok = confirm("هل تريد حذف سجل هذا العميل؟");
+                          if (ok) handleDelete(customer.id);
+                        }}
                       >
                         <FaRegTrashAlt />
                       </button>
@@ -242,20 +346,7 @@ function Debts() {
               />
             </div>
 
-            <div className="inputContainer">
-              <label>
-                <GiMoneyStack />
-              </label>
-              <select
-                value={form.debtType}
-                onChange={(e) => setForm({ ...form, debtType: e.target.value })}
-              >
-                <option value="">اختر نوع الدين</option>
-                <option value="موبايل">موبايل</option>
-                <option value="اكسسوار">اكسسوار</option>
-                <option value="صيانة">صيانة</option>
-              </select>
-            </div>
+
           </div>
 
           <div className={styles.inputBox}>
@@ -279,7 +370,7 @@ function Debts() {
               >
                 <option value="">الدين لمين</option>
                 <option value="ليك">ليك</option>
-                <option value="عليك">عليك</option>
+                <option value="بضاعة اجل">بضاعة اجل</option>
               </select>
             </div>
           </div>
@@ -289,6 +380,112 @@ function Debts() {
           </button>
         </div>
       </div>
+
+      {/* ===== Payment Modal (NEW) ===== */}
+      {showPaymentModal && paymentCustomer && (
+        <div
+          // full screen overlay
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16
+          }}
+          onClick={closePaymentModal}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "min(520px, 96%)",
+              maxHeight: "90vh",
+              background: "#fff",
+              borderRadius: 12,
+              padding: 20,
+              boxShadow: "0 12px 40px rgba(0,0,0,0.25)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+              transform: processingPayment ? "scale(0.99)" : "scale(1)",
+              transition: "all 200ms ease",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h3 style={{ margin: 0 }}>سداد دين — {paymentCustomer.name}</h3>
+              <button
+                onClick={closePaymentModal}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  fontSize: 18,
+                  cursor: "pointer"
+                }}
+                aria-label="close"
+              >
+                ✖
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gap: 8 }}>
+              <div style={{ fontSize: 14, color: "#555" }}>
+                الدين الحالي: <strong>{paymentCustomer.debt} EGP</strong>
+              </div>
+
+              <label style={{ fontSize: 13, color: "#333" }}>المبلغ الذي سُدِّد (جنيه)</label>
+              <input
+                type="number"
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+                placeholder="اكتب المبلغ"
+                min="0"
+                style={{
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  border: "1px solid #ddd",
+                  outline: "none",
+                  width: "100%",
+                  boxSizing: "border-box"
+                }}
+              />
+
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
+                <button
+                  onClick={closePaymentModal}
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: 8,
+                    border: "1px solid #ccc",
+                    background: "transparent",
+                    cursor: "pointer"
+                  }}
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={handleConfirmPayment}
+                  disabled={processingPayment}
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: "#0b5ed7",
+                    color: "#fff",
+                    cursor: "pointer",
+                    boxShadow: "0 6px 16px rgba(11,94,215,0.18)"
+                  }}
+                >
+                  {processingPayment ? "جاري الحفظ..." : "تأكيد السداد"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

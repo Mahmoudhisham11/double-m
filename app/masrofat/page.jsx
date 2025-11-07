@@ -92,17 +92,6 @@ function Masrofat() {
         }
     };
 
-    // تقفيل المصروفات (حذف الكل)
-    const handleCloseDay = async () => {
-        try {
-            const snapshot = await getDocs(collection(db, "masrofat"));
-            const batchDeletes = snapshot.docs.map((docSnap) => deleteDoc(doc(db, "masrofat", docSnap.id)));
-            await Promise.all(batchDeletes);
-            alert("تم تقفيل المصروفات");
-        } catch (error) {
-            console.error("خطأ أثناء تقفيل اليوم:", error);
-        }
-    };
 
     const total = masrofatList.reduce((acc, item) => acc + Number(item.masrof || 0), 0);
     if (loading) return <p>🔄 جاري التحقق...</p>;
@@ -113,7 +102,6 @@ function Masrofat() {
             <SideBar />
             <div className={styles.content}>
                 <div className={styles.btns}>
-                    <button onClick={handleCloseDay}>تقفيل المصاريف</button>
                     <button onClick={() => setActive(!active)}>اضف مصاريف جديدة</button>
                 </div>
 

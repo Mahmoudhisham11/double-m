@@ -27,10 +27,7 @@ function SideBar({openSideBar, setOpenSideBar}) {
         <div className={openSideBar ? `${styles.sideBar} ${styles.active}` : `${styles.sideBar}`}>
             <div className={styles.title}>
                 <div className={styles.imageContainer}>
-                    <h2>Lacoste</h2>
-                    <div className={styles.imageBox}>
-                        <Image src={logo} fill style={{objectFit: 'cover'}} alt="logo"/>
-                    </div>
+                    <h2>Devoria</h2>
                 </div>
                 <button className={styles.closeBtn} onClick={() => setOpenSideBar(false)}><IoIosCloseCircle/></button>
             </div>
@@ -59,10 +56,10 @@ function SideBar({openSideBar, setOpenSideBar}) {
                     <span><TbReportSearch/></span>
                     <span>التقارير</span>
                 </Link>
-                <Link href={'/balance'} className={styles.actionLinks}>
+                {/* <Link href={'/balance'} className={styles.actionLinks}>
                     <span><GoGraph /></span>
                     <span>الارصدة</span>
-                </Link>
+                </Link> */}
             </div>
             <div className={styles.logout}>
                 <Link href={'/settings'} className={styles.actionLinks}>

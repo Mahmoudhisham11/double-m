@@ -30,6 +30,7 @@ function Main() {
   const [showClientPopup, setShowClientPopup] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [searchClient, setSearchClient] = useState("");
+  const [masrofat, setMasrofat] = useState([])
 
   // NEW: discount popup & values
   const [showDiscountPopup, setShowDiscountPopup] = useState(false);
@@ -37,12 +38,12 @@ function Main() {
   const [discountNotes, setDiscountNotes] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState(0);
 
-  // NEW: variant selection popup states
+  // Variant modal states (updated to support color -> sizes -> qty per size)
   const [showVariantPopup, setShowVariantPopup] = useState(false);
   const [variantProduct, setVariantProduct] = useState(null); // lacosteProducts doc (with id)
   const [variantSelectedColor, setVariantSelectedColor] = useState("");
-  const [variantSelectedSize, setVariantSelectedSize] = useState("");
-  const [variantQuantity, setVariantQuantity] = useState(1);
+  // map size => qty for currently selected color in modal
+  const [variantSizeMap, setVariantSizeMap] = useState({}); // { "M": 0, "L": 2 }
 
   const nameRef = useRef();
   const phoneRef = useRef();
@@ -54,6 +55,16 @@ function Main() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setDailySales(data);
+    });
+    return () => unsubscribe();
+  }, [shop]);
+  
+  useEffect(() => {
+    if (!shop) return;
+    const q = query(collection(db, "masrofat"), where("shop", "==", shop));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      setMasrofat(data);
     });
     return () => unsubscribe();
   }, [shop]);
@@ -110,8 +121,14 @@ function Main() {
   // -------------------------
   // helpers: compute sums and safe update logic
   // -------------------------
-  const sumColorsQty = (colors = []) => colors.reduce((s, c) => s + (Number(c.quantity || 0)), 0);
-  const sumSizesQty = (sizes = []) => sizes.reduce((s, c) => s + (Number(c.quantity || 0)), 0);
+  const sumColorsQty = (colors = []) => {
+    // support both old {color, quantity} and new {color, sizes: [{size, qty}]}
+    return colors.reduce((s, c) => {
+      if (Array.isArray(c.sizes)) return s + c.sizes.reduce((ss, it) => ss + Number(it.qty || it.quantity || 0), 0);
+      return s + (Number(c.quantity || 0));
+    }, 0);
+  };
+  const sumSizesQty = (sizes = []) => sizes.reduce((s, c) => s + (Number(c.qty || c.quantity || 0)), 0);
 
   // recompute product.quantity after updating colors/sizes
   const computeNewTotalQuantity = (colors, sizes, fallbackOldQuantity = 0) => {
@@ -126,48 +143,74 @@ function Main() {
     return fallbackOldQuantity;
   };
 
+  // helper: get available quantity for given product + optional color + optional size
+  const getAvailableForVariant = (product, colorName, sizeName) => {
+    if (!product) return 0;
+    // if color specified
+    if (colorName) {
+      const colorObj = Array.isArray(product.colors) ? product.colors.find(c => c.color === colorName) : null;
+      if (colorObj) {
+        // if color has sizes array
+        if (Array.isArray(colorObj.sizes) && colorObj.sizes.length) {
+          if (sizeName) {
+            const sizeObj = colorObj.sizes.find(s => s.size === sizeName);
+            return sizeObj ? Number(sizeObj.qty || sizeObj.quantity || 0) : 0;
+          } else {
+            // sum all sizes under color
+            return colorObj.sizes.reduce((s, it) => s + Number(it.qty || it.quantity || 0), 0);
+          }
+        }
+        // fallback to colorObj.quantity if present
+        return Number(colorObj.quantity || 0);
+      }
+      return 0;
+    }
+
+    // if size specified at product root
+    if (sizeName) {
+      const sizeObj = Array.isArray(product.sizes) ? product.sizes.find(s => s.size === sizeName) : null;
+      return sizeObj ? Number(sizeObj.qty || sizeObj.quantity || 0) : 0;
+    }
+
+    // fallback to total quantity
+    return Number(product.quantity || 0);
+  };
+
   // -------------------------
   // handleAddToCart: now opens variant popup if product has colors/sizes
   // -------------------------
   const openVariantForProduct = (product) => {
     // product is lacosteProducts doc with id
     setVariantProduct(product);
-    // default selections
-    setVariantSelectedColor(product.colors && product.colors.length ? product.colors[0].color : "");
-    setVariantSelectedSize(product.sizes && product.sizes.length ? product.sizes[0].size : "");
-    setVariantQuantity(1);
+    // default color -> first available color
+    const firstColor = (product.colors && product.colors.length) ? product.colors[0].color : "";
+    setVariantSelectedColor(firstColor);
+
+    // default variantSizeMap based on firstColor
+    const initMap = {};
+    if (product.colors && product.colors.length && firstColor) {
+      const colorObj = product.colors.find(c => c.color === firstColor);
+      if (colorObj && Array.isArray(colorObj.sizes)) {
+        colorObj.sizes.forEach(sz => initMap[sz.size] = 0);
+      }
+    } else if (product.sizes && product.sizes.length) {
+      product.sizes.forEach(sz => initMap[sz.size] = 0);
+    }
+    setVariantSizeMap(initMap);
     setShowVariantPopup(true);
   };
 
+  // core: add to cart & reserve stock — adjusted to new structure (color.sizes[].qty and product.sizes[].qty)
   const addToCartAndReserve = async (product, options = {}) => {
     // options: { color, size, quantity }
-    const qty = Number(options.quantity || 1);
-    // calculate available based on variant(s)
-    let available = product.quantity || 0;
-    if (options.color && product.colors && product.colors.length) {
-      const c = product.colors.find(x => x.color === (options.color || ""));
-      available = c ? Number(c.quantity || 0) : 0;
-    }
-    if (options.size && product.sizes && product.sizes.length) {
-      const s = product.sizes.find(x => x.size === (options.size || ""));
-      // If both color and size provided, ensure both have enough — available becomes min of both
-      if (options.color && product.colors && product.colors.length) {
-        const c = product.colors.find(x => x.color === (options.color || ""));
-        const cQty = c ? Number(c.quantity || 0) : 0;
-        const sQty = s ? Number(s.quantity || 0) : 0;
-        available = Math.min(cQty, sQty);
-      } else {
-        available = s ? Number(s.quantity || 0) : 0;
-      }
-    }
+    const qty = Number(options.quantity || 0);
+    if (qty <= 0) return;
 
-    if (qty < 1) {
-      alert("الكمية يجب أن تكون على الأقل 1");
-      return;
-    }
+    // compute available
+    const available = getAvailableForVariant(product, options.color, options.size);
 
     if (qty > available) {
-      alert(`الكمية المطلوبة (${qty}) أكبر من الكمية المتاحة (${available})`);
+      alert(`الكمية المطلوبة (${qty}) أكبر من المتاح (${available})`);
       return;
     }
 
@@ -198,31 +241,68 @@ function Main() {
       if (prodSnap.exists()) {
         const prodData = prodSnap.data();
 
-        // We'll prepare updated arrays for both colors and sizes if needed
-        let newColors = Array.isArray(prodData.colors) ? [...prodData.colors] : null;
-        let newSizes = Array.isArray(prodData.sizes) ? [...prodData.sizes] : null;
+        // clone arrays
+        let newColors = Array.isArray(prodData.colors) ? prodData.colors.map(c => ({
+          color: c.color,
+          // If sizes array exists, copy it normalizing qty property
+          sizes: Array.isArray(c.sizes) ? c.sizes.map(s => ({ size: s.size, qty: Number(s.qty ?? s.quantity ?? 0) })) : undefined,
+          // keep legacy quantity if present
+          quantity: c.quantity !== undefined ? Number(c.quantity) : undefined
+        })) : null;
 
-        // If color option provided -> decrement that color
-        if (options.color && newColors) {
+        let newSizes = Array.isArray(prodData.sizes) ? prodData.sizes.map(s => ({ size: s.size, qty: Number(s.qty ?? s.quantity ?? 0) })) : null;
+
+        // If both color and size provided -> decrement that size inside that color
+        if (options.color && options.size && newColors) {
           newColors = newColors.map(c => {
             if (c.color === options.color) {
-              return { ...c, quantity: Math.max(0, (Number(c.quantity || 0) - qty)) };
+              // if color uses sizes array
+              if (Array.isArray(c.sizes)) {
+                const sizesCopy = c.sizes.map(s => ({ ...s }));
+                const target = sizesCopy.find(s => s.size === options.size);
+                if (target) {
+                  target.qty = Math.max(0, Number(target.qty || 0) - qty);
+                }
+                return { ...c, sizes: sizesCopy.filter(s => Number(s.qty || 0) > 0) };
+              } else {
+                // legacy: decrement color.quantity
+                return { ...c, quantity: Math.max(0, Number(c.quantity || 0) - qty) };
+              }
             }
             return c;
-          }).filter(c => Number(c.quantity || 0) > 0); // optionally remove zero entries
-        }
-
-        // If size option provided -> decrement that size
-        if (options.size && newSizes) {
-          newSizes = newSizes.map(s => {
-            if (s.size === options.size) {
-              return { ...s, quantity: Math.max(0, (Number(s.quantity || 0) - qty)) };
+          }).filter(c => {
+            // keep color if it still has sizes or positive quantity
+            if (Array.isArray(c.sizes)) return c.sizes.length > 0;
+            return Number(c.quantity || 0) > 0;
+          });
+        } else if (options.color && newColors) {
+          // only color provided: try to decrement from sizes total if exists, else from quantity
+          newColors = newColors.map(c => {
+            if (c.color === options.color) {
+              if (Array.isArray(c.sizes)) {
+                // reduce starting from first sizes (simple strategy) — but typical flow will provide size
+                const sizesCopy = c.sizes.map(s => ({ ...s }));
+                let remaining = qty;
+                for (let si = 0; si < sizesCopy.length && remaining > 0; si++) {
+                  const take = Math.min(Number(sizesCopy[si].qty || 0), remaining);
+                  sizesCopy[si].qty = Math.max(0, Number(sizesCopy[si].qty || 0) - take);
+                  remaining -= take;
+                }
+                return { ...c, sizes: sizesCopy.filter(s => Number(s.qty || 0) > 0) };
+              } else {
+                return { ...c, quantity: Math.max(0, Number(c.quantity || 0) - qty) };
+              }
             }
-            return s;
-          }).filter(s => Number(s.quantity || 0) > 0);
+            return c;
+          }).filter(c => (Array.isArray(c.sizes) ? c.sizes.length > 0 : Number(c.quantity || 0) > 0));
         }
 
-        // If product has BOTH arrays and we changed both, compute new total accordingly
+        // If only size at product root is provided
+        if (options.size && !options.color && newSizes) {
+          newSizes = newSizes.map(s => s.size === options.size ? { ...s, qty: Math.max(0, Number(s.qty || 0) - qty) } : s).filter(s => Number(s.qty || 0) > 0);
+        }
+
+        // compute new total quantity
         const newTotalQty = computeNewTotalQuantity(newColors, newSizes, Number(prodData.quantity || 0));
 
         if (newTotalQty <= 0) {
@@ -230,8 +310,14 @@ function Main() {
           await deleteDoc(prodRef);
         } else {
           const updateObj = { quantity: newTotalQty };
-          if (newColors) updateObj.colors = newColors;
-          if (newSizes) updateObj.sizes = newSizes;
+          if (newColors) updateObj.colors = newColors.map(c => {
+            // normalize to older schema for compatibility: if c.sizes exists keep it, else keep quantity
+            const obj = { color: c.color };
+            if (Array.isArray(c.sizes)) obj.sizes = c.sizes.map(s => ({ size: s.size, qty: Number(s.qty || 0) }));
+            if (c.quantity !== undefined) obj.quantity = c.quantity;
+            return obj;
+          });
+          if (newSizes) updateObj.sizes = newSizes.map(s => ({ size: s.size, qty: Number(s.qty || 0) }));
           await updateDoc(prodRef, updateObj);
         }
       }
@@ -277,78 +363,136 @@ function Main() {
         // compute available for this variant
         let availableColor = null;
         let availableSize = null;
-        if (cartItem.color && prodData.colors && prodData.colors.length) {
-          const c = prodData.colors.find(x => x.color === cartItem.color);
-          availableColor = c ? Number(c.quantity || 0) : 0;
+
+        if (cartItem.color) {
+          // available for color: sum of sizes under color OR legacy quantity
+          const c = Array.isArray(prodData.colors) ? prodData.colors.find(x => x.color === cartItem.color) : null;
+          if (c) {
+            if (Array.isArray(c.sizes)) {
+              availableColor = c.sizes.reduce((s, it) => s + Number(it.qty || it.quantity || 0), 0);
+            } else {
+              availableColor = Number(c.quantity || 0);
+            }
+          } else {
+            availableColor = 0;
+          }
         }
-        if (cartItem.size && prodData.sizes && prodData.sizes.length) {
-          const s = prodData.sizes.find(x => x.size === cartItem.size);
-          availableSize = s ? Number(s.quantity || 0) : 0;
+        if (cartItem.size) {
+          // available size at product level or inside color
+          const sInRoot = Array.isArray(prodData.sizes) ? prodData.sizes.find(x => x.size === cartItem.size) : null;
+          availableSize = sInRoot ? Number(sInRoot.qty || sInRoot.quantity || 0) : null;
+          if (cartItem.color && Array.isArray(prodData.colors)) {
+            const c = prodData.colors.find(x => x.color === cartItem.color);
+            if (c && Array.isArray(c.sizes)) {
+              const s = c.sizes.find(x => x.size === cartItem.size);
+              availableSize = s ? Number(s.qty || s.quantity || 0) : (availableSize ?? 0);
+            }
+          }
         }
 
-        // If both variants present, need both to have enough (we reserved earlier)
         const need = newQty - cartItem.quantity;
-        if (cartItem.color && cartItem.size) {
-          const canIncrease = (availableColor >= need) && (availableSize >= need);
-          if (!canIncrease) {
-            alert("لا توجد كمية كافية لزيادة العدد (اللون أو المقاس غير كافيين)");
-            return;
+        if (need > 0) {
+          // increasing -> ensure availability
+          if (cartItem.color && cartItem.size) {
+            const canIncrease = (availableColor >= need) && (availableSize >= need);
+            if (!canIncrease) {
+              alert("لا توجد كمية كافية لزيادة العدد (اللون أو المقاس غير كافيين)");
+              return;
+            }
+          } else if (cartItem.color) {
+            if (need > (availableColor || 0)) {
+              alert("لا توجد كمية كافية لزيادة العدد (اللون غير كافٍ)");
+              return;
+            }
+          } else if (cartItem.size) {
+            if (need > (availableSize || 0)) {
+              alert("لا توجد كمية كافية لزيادة العدد (المقاس غير كافٍ)");
+              return;
+            }
+          } else {
+            const avail = Number(prodData.quantity || 0);
+            if (need > avail) {
+              alert("لا توجد كمية كافية لزيادة العدد");
+              return;
+            }
           }
-        } else if (cartItem.color) {
-          if (need > (availableColor || 0)) {
-            alert("لا توجد كمية كافية لزيادة العدد (اللون غير كافٍ)");
-            return;
+
+          // update cart
+          const newTotal = newQty * cartItem.sellPrice;
+          await updateDoc(doc(db, "cart", cartItem.id), {
+            quantity: newQty,
+            total: newTotal,
+          });
+
+          // decrement product reserve accordingly (same logic as addToCartAndReserve)
+          let newColors = Array.isArray(prodData.colors) ? prodData.colors.map(c => {
+            return {
+              color: c.color,
+              sizes: Array.isArray(c.sizes) ? c.sizes.map(s => ({ size: s.size, qty: Number(s.qty ?? s.quantity ?? 0) })) : undefined,
+              quantity: c.quantity !== undefined ? Number(c.quantity) : undefined
+            };
+          }) : null;
+          let newSizes = Array.isArray(prodData.sizes) ? prodData.sizes.map(s => ({ size: s.size, qty: Number(s.qty ?? s.quantity ?? 0) })) : null;
+
+          if (cartItem.color && cartItem.size && newColors) {
+            newColors = newColors.map(c => {
+              if (c.color === cartItem.color) {
+                if (Array.isArray(c.sizes)) {
+                  const sizesCopy = c.sizes.map(s => ({ ...s }));
+                  const target = sizesCopy.find(s => s.size === cartItem.size);
+                  if (target) target.qty = Math.max(0, Number(target.qty || 0) - need);
+                  return { ...c, sizes: sizesCopy.filter(s => Number(s.qty || 0) > 0) };
+                } else {
+                  return { ...c, quantity: Math.max(0, Number(c.quantity || 0) - need) };
+                }
+              }
+              return c;
+            }).filter(c => (Array.isArray(c.sizes) ? c.sizes.length > 0 : Number(c.quantity || 0) > 0));
+          } else if (cartItem.color && newColors) {
+            newColors = newColors.map(c => {
+              if (c.color === cartItem.color) {
+                if (Array.isArray(c.sizes)) {
+                  const sizesCopy = c.sizes.map(s => ({ ...s }));
+                  let remain = need;
+                  for (let i = 0; i < sizesCopy.length && remain > 0; i++) {
+                    const take = Math.min(Number(sizesCopy[i].qty || 0), remain);
+                    sizesCopy[i].qty = Math.max(0, Number(sizesCopy[i].qty || 0) - take);
+                    remain -= take;
+                  }
+                  return { ...c, sizes: sizesCopy.filter(s => Number(s.qty || 0) > 0) };
+                } else {
+                  return { ...c, quantity: Math.max(0, Number(c.quantity || 0) - need) };
+                }
+              }
+              return c;
+            }).filter(c => (Array.isArray(c.sizes) ? c.sizes.length > 0 : Number(c.quantity || 0) > 0));
+          } else if (cartItem.size && newSizes) {
+            newSizes = newSizes.map(s => s.size === cartItem.size ? { ...s, qty: Math.max(0, Number(s.qty || 0) - need) } : s).filter(s => Number(s.qty || 0) > 0);
           }
-        } else if (cartItem.size) {
-          if (need > (availableSize || 0)) {
-            alert("لا توجد كمية كافية لزيادة العدد (المقاس غير كافٍ)");
-            return;
+
+          const newTotalQty = computeNewTotalQuantity(newColors, newSizes, Number(prodData.quantity || 0));
+          if (newTotalQty <= 0) {
+            await deleteDoc(prodRef);
+          } else {
+            const updateObj = { quantity: newTotalQty };
+            if (newColors) updateObj.colors = newColors.map(c => {
+              const o = { color: c.color };
+              if (Array.isArray(c.sizes)) o.sizes = c.sizes.map(s => ({ size: s.size, qty: Number(s.qty || 0) }));
+              if (c.quantity !== undefined) o.quantity = c.quantity;
+              return o;
+            });
+            if (newSizes) updateObj.sizes = newSizes.map(s => ({ size: s.size, qty: Number(s.qty || 0) }));
+            await updateDoc(prodRef, updateObj);
           }
         } else {
-          // fallback to total quantity field if no variants
-          const avail = Number(prodData.quantity || 0);
-          if (need > avail) {
-            alert("لا توجد كمية كافية لزيادة العدد");
-            return;
-          }
-        }
-
-        // update cart
-        const newTotal = newQty * cartItem.sellPrice;
-        await updateDoc(doc(db, "cart", cartItem.id), {
-          quantity: newQty,
-          total: newTotal,
-        });
-
-        // decrement product reserve accordingly
-        let newColors = Array.isArray(prodData.colors) ? [...prodData.colors] : null;
-        let newSizes = Array.isArray(prodData.sizes) ? [...prodData.sizes] : null;
-
-        if (cartItem.color && newColors) {
-          newColors = newColors.map(c => {
-            if (c.color === cartItem.color) {
-              return { ...c, quantity: Math.max(0, (Number(c.quantity || 0) - need)) };
-            }
-            return c;
-          }).filter(c => Number(c.quantity || 0) > 0);
-        }
-        if (cartItem.size && newSizes) {
-          newSizes = newSizes.map(s => {
-            if (s.size === cartItem.size) {
-              return { ...s, quantity: Math.max(0, (Number(s.quantity || 0) - need)) };
-            }
-            return s;
-          }).filter(s => Number(s.quantity || 0) > 0);
-        }
-
-        const newTotalQty = computeNewTotalQuantity(newColors, newSizes, Number(prodData.quantity || 0));
-        if (newTotalQty <= 0) {
-          await deleteDoc(prodRef);
-        } else {
-          const updateObj = { quantity: newTotalQty };
-          if (newColors) updateObj.colors = newColors;
-          if (newSizes) updateObj.sizes = newSizes;
-          await updateDoc(prodRef, updateObj);
+          // decreasing quantity in cart -> we do not restore here (user removes item or presses - to reduce)
+          // For simplicity we let "delete from cart" restore the reserved quantity (handled in handleDeleteCartItem).
+          // If you want to restore on decrease, we can implement that too.
+          const newTotal = newQty * cartItem.sellPrice;
+          await updateDoc(doc(db, "cart", cartItem.id), {
+            quantity: newQty,
+            total: newTotal,
+          });
         }
       } else {
         alert("لم يتم العثور على بيانات المنتج في المخزون لعملية الزيادة");
@@ -376,32 +520,79 @@ function Main() {
           if (prodSnap.exists()) {
             const prodData = prodSnap.data();
             // restore variant(s)
-            let newColors = Array.isArray(prodData.colors) ? [...prodData.colors] : null;
-            let newSizes = Array.isArray(prodData.sizes) ? [...prodData.sizes] : null;
+            let newColors = Array.isArray(prodData.colors) ? prodData.colors.map(c => {
+              return {
+                color: c.color,
+                sizes: Array.isArray(c.sizes) ? c.sizes.map(s => ({ size: s.size, qty: Number(s.qty ?? s.quantity ?? 0) })) : undefined,
+                quantity: c.quantity !== undefined ? Number(c.quantity) : undefined
+              };
+            }) : null;
+            let newSizes = Array.isArray(prodData.sizes) ? prodData.sizes.map(s => ({ size: s.size, qty: Number(s.qty ?? s.quantity ?? 0) })) : null;
 
             if (cartData.color) {
               const found = newColors && newColors.find(c => c.color === cartData.color);
               if (found) {
-                newColors = newColors.map(c => c.color === cartData.color ? { ...c, quantity: Number(c.quantity || 0) + Number(cartData.quantity || 0) } : c);
+                // if found and has sizes array and cartData.size provided -> restore to that specific size
+                if (cartData.size && Array.isArray(found.sizes)) {
+                  newColors = newColors.map(c => {
+                    if (c.color === cartData.color) {
+                      const sizesCopy = c.sizes.map(s => ({ ...s }));
+                      const target = sizesCopy.find(s => s.size === cartData.size);
+                      if (target) {
+                        target.qty = Number(target.qty || 0) + Number(cartData.quantity || 0);
+                      } else {
+                        sizesCopy.push({ size: cartData.size, qty: Number(cartData.quantity || 0) });
+                      }
+                      return { ...c, sizes: sizesCopy };
+                    }
+                    return c;
+                  });
+                } else if (!cartData.size && Array.isArray(found.sizes)) {
+                  // restore by adding to first size or create an aggregated 'الكمية' size
+                  newColors = newColors.map(c => {
+                    if (c.color === cartData.color) {
+                      // try to append to a generic size 'الكمية' if exists
+                      const sizesCopy = c.sizes.map(s => ({ ...s }));
+                      const generic = sizesCopy.find(s => s.size === "الكمية");
+                      if (generic) {
+                        generic.qty = Number(generic.qty || 0) + Number(cartData.quantity || 0);
+                      } else {
+                        sizesCopy.push({ size: "الكمية", qty: Number(cartData.quantity || 0) });
+                      }
+                      return { ...c, sizes: sizesCopy };
+                    }
+                    return c;
+                  });
+                } else {
+                  // legacy: restore color.quantity
+                  newColors = newColors.map(c => c.color === cartData.color ? { ...c, quantity: Number(c.quantity || 0) + Number(cartData.quantity || 0) } : c);
+                }
               } else {
-                newColors = [...(newColors || []), { color: cartData.color, quantity: Number(cartData.quantity || 0) }];
+                // color not found -> add it
+                const addObj = cartData.size ? { color: cartData.color, sizes: [{ size: cartData.size, qty: Number(cartData.quantity || 0) }] } : { color: cartData.color, quantity: Number(cartData.quantity || 0) };
+                newColors = [...(newColors || []), addObj];
               }
             }
 
-            if (cartData.size) {
+            if (cartData.size && !cartData.color) {
               const foundS = newSizes && newSizes.find(s => s.size === cartData.size);
               if (foundS) {
-                newSizes = newSizes.map(s => s.size === cartData.size ? { ...s, quantity: Number(s.quantity || 0) + Number(cartData.quantity || 0) } : s);
+                newSizes = newSizes.map(s => s.size === cartData.size ? { ...s, qty: Number(s.qty || 0) + Number(cartData.quantity || 0) } : s);
               } else {
-                newSizes = [...(newSizes || []), { size: cartData.size, quantity: Number(cartData.quantity || 0) }];
+                newSizes = [...(newSizes || []), { size: cartData.size, qty: Number(cartData.quantity || 0) }];
               }
             }
 
             // fallback to quantity field if neither variant exists
             const newTotalQty = computeNewTotalQuantity(newColors, newSizes, Number(prodData.quantity || 0));
             const updateObj = { quantity: newTotalQty };
-            if (newColors) updateObj.colors = newColors;
-            if (newSizes) updateObj.sizes = newSizes;
+            if (newColors) updateObj.colors = newColors.map(c => {
+              const o = { color: c.color };
+              if (Array.isArray(c.sizes)) o.sizes = c.sizes.map(s => ({ size: s.size, qty: Number(s.qty || 0) }));
+              if (c.quantity !== undefined) o.quantity = c.quantity;
+              return o;
+            });
+            if (newSizes) updateObj.sizes = newSizes.map(s => ({ size: s.size, qty: Number(s.qty || 0) }));
             await updateDoc(prodRef, updateObj);
           } else {
             // product doc disappeared, recreate with the returned variant
@@ -414,8 +605,11 @@ function Main() {
               shop: cartData.shop || shop,
               type: cartData.type || "product",
             };
-            if (cartData.color) toAdd.colors = [{ color: cartData.color, quantity: cartData.quantity || 0 }];
-            if (cartData.size) toAdd.sizes = [{ size: cartData.size, quantity: cartData.quantity || 0 }];
+            if (cartData.color) {
+              if (cartData.size) toAdd.colors = [{ color: cartData.color, sizes: [{ size: cartData.size, qty: cartData.quantity || 0 }] }];
+              else toAdd.colors = [{ color: cartData.color, quantity: cartData.quantity || 0 }];
+            }
+            if (cartData.size && !cartData.color) toAdd.sizes = [{ size: cartData.size, qty: cartData.quantity || 0 }];
             await addDoc(collection(db, "lacosteProducts"), toAdd);
           }
         }
@@ -687,6 +881,8 @@ function Main() {
   );
 
   const totalSales = filteredInvoices.reduce((sum, i) => sum + (i.total || 0), 0);
+  const totalMasrofat = masrofat.reduce((sum, i) => sum + (i.masrof || 0), 0);
+  const finallyTotal = Number(totalSales) - Number(totalMasrofat)
   const employeeSales = {};
   filteredInvoices.forEach((invoice) => {
     if (invoice.employee && invoice.employee !== "غير محدد") {
@@ -714,41 +910,69 @@ function Main() {
       if (prodSnap.exists()) {
         const prodData = prodSnap.data();
 
-        let newColors = Array.isArray(prodData.colors) ? [...prodData.colors] : null;
-        let newSizes = Array.isArray(prodData.sizes) ? [...prodData.sizes] : null;
+        let newColors = Array.isArray(prodData.colors) ? prodData.colors.map(c => {
+          return {
+            color: c.color,
+            sizes: Array.isArray(c.sizes) ? c.sizes.map(s => ({ size: s.size, qty: Number(s.qty ?? s.quantity ?? 0) })) : undefined,
+            quantity: c.quantity !== undefined ? Number(c.quantity) : undefined
+          };
+        }) : null;
+        let newSizes = Array.isArray(prodData.sizes) ? prodData.sizes.map(s => ({ size: s.size, qty: Number(s.qty ?? s.quantity ?? 0) })) : null;
 
-        // restore color
+        // restore color+size quantities properly (similar to handleDeleteCartItem)
         if (item.color) {
-          if (newColors) {
-            const found = newColors.find(c => c.color === item.color);
-            if (found) {
-              newColors = newColors.map(c => c.color === item.color ? { ...c, quantity: Number(c.quantity || 0) + Number(item.quantity || 0) } : c);
+          const found = newColors && newColors.find(c => c.color === item.color);
+          if (found) {
+            if (item.size && Array.isArray(found.sizes)) {
+              newColors = newColors.map(c => {
+                if (c.color === item.color) {
+                  const sizesCopy = c.sizes.map(s => ({ ...s }));
+                  const target = sizesCopy.find(s => s.size === item.size);
+                  if (target) {
+                    target.qty = Number(target.qty || 0) + Number(item.quantity || 0);
+                  } else {
+                    sizesCopy.push({ size: item.size, qty: Number(item.quantity || 0) });
+                  }
+                  return { ...c, sizes: sizesCopy };
+                }
+                return c;
+              });
+            } else if (!item.size && Array.isArray(found.sizes)) {
+              // append generic
+              newColors = newColors.map(c => {
+                if (c.color === item.color) {
+                  const sizesCopy = c.sizes.map(s => ({ ...s }));
+                  const generic = sizesCopy.find(s => s.size === "الكمية");
+                  if (generic) generic.qty = Number(generic.qty || 0) + Number(item.quantity || 0);
+                  else sizesCopy.push({ size: "الكمية", qty: Number(item.quantity || 0) });
+                  return { ...c, sizes: sizesCopy };
+                }
+                return c;
+              });
             } else {
-              newColors = [...(newColors || []), { color: item.color, quantity: Number(item.quantity || 0) }];
+              newColors = newColors.map(c => c.color === item.color ? { ...c, quantity: Number(c.quantity || 0) + Number(item.quantity || 0) } : c);
             }
           } else {
-            newColors = [{ color: item.color, quantity: Number(item.quantity || 0) }];
+            const addObj = item.size ? { color: item.color, sizes: [{ size: item.size, qty: Number(item.quantity || 0) }] } : { color: item.color, quantity: Number(item.quantity || 0) };
+            newColors = [...(newColors || []), addObj];
           }
         }
 
-        // restore size
-        if (item.size) {
-          if (newSizes) {
-            const foundS = newSizes.find(s => s.size === item.size);
-            if (foundS) {
-              newSizes = newSizes.map(s => s.size === item.size ? { ...s, quantity: Number(s.quantity || 0) + Number(item.quantity || 0) } : s);
-            } else {
-              newSizes = [...(newSizes || []), { size: item.size, quantity: Number(item.quantity || 0) }];
-            }
-          } else {
-            newSizes = [{ size: item.size, quantity: Number(item.quantity || 0) }];
-          }
+        if (item.size && !item.color) {
+          const foundS = newSizes && newSizes.find(s => s.size === item.size);
+          if (foundS) newSizes = newSizes.map(s => s.size === item.size ? { ...s, qty: Number(s.qty || 0) + Number(item.quantity || 0) } : s);
+          else newSizes = [...(newSizes || []), { size: item.size, qty: Number(item.quantity || 0) }];
         }
 
         const newTotalQty = computeNewTotalQuantity(newColors, newSizes, Number(prodData.quantity || 0));
         const updateObj = { quantity: newTotalQty };
-        if (newColors) updateObj.colors = newColors;
-        if (newSizes) updateObj.sizes = newSizes;
+        if (newColors) updateObj.colors = newColors.map(c => {
+          const o = { color: c.color };
+          if (Array.isArray(c.sizes)) o.sizes = c.sizes.map(s => ({ size: s.size, qty: Number(s.qty || 0) }));
+          if (c.quantity !== undefined) o.quantity = c.quantity;
+          return o;
+        });
+        if (newSizes) updateObj.sizes = newSizes.map(s => ({ size: s.size, qty: Number(s.qty || 0) }));
         await updateDoc(prodRef, updateObj);
       } else {
         // المنتج مش موجود - نضيفه جديد
@@ -761,8 +985,8 @@ function Main() {
           shop: item.shop || shop,
           type: item.type || "product",
         };
-        if (item.color) toAdd.colors = [{ color: item.color, quantity: item.quantity || 0 }];
-        if (item.size) toAdd.sizes = [{ size: item.size, quantity: item.quantity || 0 }];
+        if (item.color) toAdd.colors = [{ color: item.color, sizes: [{ size: item.size || "الكمية", qty: item.quantity || 0 }] }];
+        if (item.size && !item.color) toAdd.sizes = [{ size: item.size, qty: item.quantity || 0 }];
         await addDoc(collection(db, "lacosteProducts"), toAdd);
       }
     } else {
@@ -776,8 +1000,8 @@ function Main() {
         shop: item.shop || shop,
         type: item.type || "product",
       };
-      if (item.color) toAdd.colors = [{ color: item.color, quantity: item.quantity || 0 }];
-      if (item.size) toAdd.sizes = [{ size: item.size, quantity: item.quantity || 0 }];
+      if (item.color) toAdd.colors = [{ color: item.color, sizes: [{ size: item.size || "الكمية", qty: item.quantity || 0 }] }];
+      if (item.size && !item.color) toAdd.sizes = [{ size: item.size, qty: item.quantity || 0 }];
       await addDoc(collection(db, "lacosteProducts"), toAdd);
     }
 
@@ -866,7 +1090,11 @@ function Main() {
             </div>
             <div className={styles.card}>
               <h4>إجمالي المبيعات</h4>
-              <p>{totalSales} جنيه</p>
+              <p>{finallyTotal} جنيه</p>
+            </div>
+            <div className={styles.card}>
+              <h4>إجمالي المصروفات</h4>
+              <p>{totalMa} جنيه</p>
             </div>
             <div className={styles.card}>
               <h4>أنشط موظف</h4>
@@ -901,7 +1129,7 @@ function Main() {
                     <td>{invoice.total} جنيه</td>
                     <td>{formatDate(invoice.date)}</td>
                   </tr>
-                ))}
+                ))} 
               </tbody>
             </table>
             </div>
@@ -1105,102 +1333,118 @@ function Main() {
         </div>
       )}
 
-      {/* NEW: Variant selection popup */}
+      {/* NEW: Variant selection popup (color buttons -> sizes list -> qty per size) */}
       {showVariantPopup && variantProduct && (
-        <div className={styles.popupOverlay}>
-          <div className={styles.popupBox}>
-            <h3>اختر اللون/المقاس — {variantProduct.name}</h3>
+        <div className={styles.popupOverlay} onClick={() => { setShowVariantPopup(false); setVariantProduct(null); }}>
+          <div className={styles.popupBox} onClick={(e) => e.stopPropagation()}>
+            <h3>اختر اللون والمقاسات — {variantProduct.name}</h3>
 
-            {/* الألوان */}
+            {/* الألوان كـ buttons */}
             {variantProduct.colors && variantProduct.colors.length > 0 && (
               <>
                 <label>الألوان المتاحة:</label>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
                   {variantProduct.colors.map((c, idx) => (
                     <button
                       key={idx}
-                      onClick={() => setVariantSelectedColor(c.color)}
+                      onClick={() => {
+                        // switch color and rebuild variantSizeMap
+                        setVariantSelectedColor(c.color);
+                        const map = {};
+                        if (Array.isArray(c.sizes) && c.sizes.length) {
+                          c.sizes.forEach(s => map[s.size] = 0);
+                        } else if (variantProduct.sizes && variantProduct.sizes.length) {
+                          variantProduct.sizes.forEach(s => map[s.size] = 0);
+                        }
+                        setVariantSizeMap(map);
+                      }}
                       style={{
                         padding: '6px 10px',
-                        border: variantSelectedColor === c.color ? '2px solid #333' : '1px solid #ccc',
+                        border: variantSelectedColor === c.color ? '2px solid #0b5ed7' : '1px solid #ccc',
                         borderRadius: 6,
-                        background: 'white',
+                        background: variantSelectedColor === c.color ? '#e9f2ff' : 'white',
                         cursor: 'pointer'
                       }}
                     >
-                      {c.color} ({c.quantity})
+                      {c.color} ({ Array.isArray(c.sizes) ? c.sizes.reduce((s,it)=>s+Number(it.qty||it.quantity||0),0) : (c.quantity||0) })
                     </button>
                   ))}
                 </div>
               </>
             )}
 
-            {/* المقاسات */}
-            {variantProduct.sizes && variantProduct.sizes.length > 0 && (
-              <>
-                <label>المقاسات المتاحة:</label>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-                  {variantProduct.sizes.map((s, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setVariantSelectedSize(s.size)}
-                      style={{
-                        padding: '6px 10px',
-                        border: variantSelectedSize === s.size ? '2px solid #333' : '1px solid #ccc',
-                        borderRadius: 6,
-                        background: 'white',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {s.size} ({s.quantity})
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-
-            <label>الكمية:</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <button onClick={() => setVariantQuantity(q => Math.max(1, q - 1))}>-</button>
-              <input type="number" value={variantQuantity} onChange={(e) => setVariantQuantity(Math.max(1, Number(e.target.value || 1)))} style={{ width: 60, textAlign: 'center' }} />
-              <button onClick={() => setVariantQuantity(q => q + 1)}>+</button>
+            {/* المقاسات الخاصة باللون المحدد */}
+            <div>
+              <label>المقاسات للون: {variantSelectedColor || '—'}</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+                {variantSelectedColor ? (
+                  (() => {
+                    // find sizes for selected color
+                    const colorObj = Array.isArray(variantProduct.colors) ? variantProduct.colors.find(x => x.color === variantSelectedColor) : null;
+                    const sizesArr = colorObj && Array.isArray(colorObj.sizes) && colorObj.sizes.length ? colorObj.sizes : (variantProduct.sizes || []);
+                    if (!sizesArr || sizesArr.length === 0) {
+                      return <div style={{ color: '#777' }}>لا توجد مقاسات لهذا اللون</div>;
+                    }
+                    return sizesArr.map((s, si) => {
+                      const available = Number(s.qty ?? s.quantity ?? 0);
+                      const current = Number(variantSizeMap[s.size] || 0);
+                      return (
+                        <div key={si} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, border: '1px solid #eee', background: '#fff' }}>
+                          <div style={{ fontWeight: 600 }}>{s.size}</div>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            <div style={{ color: '#666' }}>متاح: {available}</div>
+                            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                              <button onClick={() => {
+                                setVariantSizeMap(prev => ({ ...prev, [s.size]: Math.max(0, (Number(prev[s.size] || 0) - 1)) }));
+                              }}>-</button>
+                              <input type="number" value={current} onChange={(e) => {
+                                const v = Math.max(0, Number(e.target.value || 0));
+                                setVariantSizeMap(prev => ({ ...prev, [s.size]: v }));
+                              }} style={{ width: 60, textAlign: 'center' }} />
+                              <button onClick={() => {
+                                setVariantSizeMap(prev => {
+                                  const newVal = Math.min(available, (Number(prev[s.size] || 0) + 1));
+                                  return { ...prev, [s.size]: newVal };
+                                });
+                              }}>+</button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()
+                ) : (
+                  <div style={{ color: '#777' }}>اختر لونًا أولًا لعرض المقاسات</div>
+                )}
+              </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
               <button onClick={() => { setShowVariantPopup(false); setVariantProduct(null); }}>إلغاء</button>
               <button onClick={async () => {
-                // validation before add
-                const selectedColor = variantSelectedColor;
-                const selectedSize = variantSelectedSize;
-                const qty = Number(variantQuantity || 1);
-
-                // compute available
-                let available = variantProduct.quantity || 0;
-                if (selectedColor && variantProduct.colors && variantProduct.colors.length) {
-                  const c = variantProduct.colors.find(x => x.color === selectedColor);
-                  available = c ? Number(c.quantity || 0) : 0;
-                }
-                if (selectedSize && variantProduct.sizes && variantProduct.sizes.length) {
-                  const s = variantProduct.sizes.find(x => x.size === selectedSize);
-                  if (selectedColor && variantProduct.colors && variantProduct.colors.length) {
-                    // both provided: availability is min of both
-                    const c = variantProduct.colors.find(x => x.color === selectedColor);
-                    const cQty = c ? Number(c.quantity || 0) : 0;
-                    const sQty = s ? Number(s.quantity || 0) : 0;
-                    available = Math.min(cQty, sQty);
-                  } else {
-                    available = s ? Number(s.quantity || 0) : 0;
-                  }
-                }
-
-                if (qty > available) {
-                  alert(`الكمية المطلوبة (${qty}) أكبر من المتاح (${available})`);
+                // Construct list of size entries with qty>0 and call addToCartAndReserve for each
+                const entries = Object.entries(variantSizeMap).map(([size, q]) => ({ size, qty: Number(q || 0) })).filter(e => e.qty > 0);
+                if (!entries.length) {
+                  alert("اختر كمية على الأقل لمقاس واحد قبل الإضافة");
                   return;
                 }
-
-                await addToCartAndReserve(variantProduct, { color: selectedColor, size: selectedSize, quantity: qty });
+                for (const e of entries) {
+                  // ensure available again using fresh product from DB
+                  const prodRef = doc(db, "lacosteProducts", variantProduct.id);
+                  const prodSnap = await getDoc(prodRef);
+                  const prodData = prodSnap.exists() ? prodSnap.data() : variantProduct;
+                  const availableNow = getAvailableForVariant(prodData, variantSelectedColor, e.size);
+                  if (e.qty > availableNow) {
+                    alert(`الكمية المطلوبة للمقاس ${e.size} (${e.qty}) أكبر من المتاح حاليا (${availableNow}). لن تُضاف هذا المقاس.`);
+                    continue;
+                  }
+                  await addToCartAndReserve(variantProduct, { color: variantSelectedColor, size: e.size, quantity: e.qty });
+                }
+                // close modal
                 setShowVariantPopup(false);
                 setVariantProduct(null);
+                setVariantSelectedColor("");
+                setVariantSizeMap({});
               }}>أضف للسلة</button>
             </div>
           </div>
