@@ -437,18 +437,18 @@ const handlePrintLabel = (product) => {
             align-items: center;
           }
 
-         .label {
+ .label {
   width: 100%;
   height: 100%;
-  padding: 0.5mm;          /* أقل من قبل */
+  padding: 0.5mm;               /* padding صغير */
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;  /* العناصر أقرب لبعض */
-  align-items: center;
+  justify-content: center;      /* ✅ المحتوى في منتصف الليبول عموديًا */
+  align-items: center;          /* ✅ المحتوى في المنتصف أفقيًا */
   overflow: hidden;
   text-align: center;
-  gap: 0.5mm;               /* مسافة صغيرة بين العناصر */
+  gap: 0.5mm;                   /* مسافة صغيرة بين العناصر */
 }
 
 .name {
@@ -459,7 +459,6 @@ const handlePrintLabel = (product) => {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
-  margin-bottom: 0.3mm;     /* مسافة صغيرة تحت الاسم */
 }
 
 .price {
@@ -468,14 +467,14 @@ const handlePrintLabel = (product) => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-bottom: 0.3mm;     /* مسافة صغيرة تحت السعر */
 }
 
 svg.barcode {
   width: 36mm;
   height: 10mm;
-  margin-top: 0;            /* بدون مسافة إضافية */
+  margin-top: 0;
 }
+
 
         </style>
       </head>
