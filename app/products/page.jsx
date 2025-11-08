@@ -412,8 +412,8 @@ function Products() {
     setShowModal(false);
   };
 
-  const handlePrintLabel = (product) => {
-  const printWindow = window.open('', '', 'width=300,height=200');
+const handlePrintLabel = (product) => {
+  const printWindow = window.open('', '', 'width=400,height=300');
   const htmlContent = `
     <html>
       <head>
@@ -421,10 +421,9 @@ function Products() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
         <style>
-          /* ✅ إعدادات الورقة */
           @media print {
             @page {
-              size: 58mm auto; /* مقاس ورق الطابعة الحرارية */
+              size: 40mm 30mm;
               margin: 0;
             }
             body {
@@ -435,49 +434,42 @@ function Products() {
           }
 
           body {
-            width: 58mm;
-            margin: 0 auto;
+            width: 40mm;
+            height: 30mm;
+            margin: 0;
             padding: 0;
             font-family: Arial, sans-serif;
-            text-align: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
           }
 
           .label {
-            width: 100%;
-            box-sizing: border-box;
-            padding: 2mm 0;
+            width: 38mm;
+            height: 28mm;
+            padding: 1mm;
             display: flex;
             flex-direction: column;
-            justify-content: center;
+            justify-content: space-between;
             align-items: center;
-            font-size: 9pt;
             text-align: center;
+            box-sizing: border-box;
           }
 
           .name {
-            font-weight: 600;
-            font-size: 9pt;
-            line-height: 1.1;
-            margin-bottom: 2mm;
-            word-wrap: break-word;
+            font-size: 8pt;
+            font-weight: bold;
+            line-height: 1;
           }
 
           .content {
-            font-size: 8pt;
-            line-height: 1.2;
-            margin-bottom: 2mm;
+            font-size: 7pt;
+            line-height: 1.1;
           }
 
-          /* ✅ حجم الباركود مضبوط للطابعة */
           svg.barcode {
-            width: 48mm;
-            height: 13mm;
-            display: block;
-            margin: 0 auto;
-          }
-
-          .barcode rect, .barcode path {
-            shape-rendering: crispEdges;
+            width: 36mm;
+            height: 10mm;
           }
         </style>
       </head>
@@ -486,7 +478,6 @@ function Products() {
           <div class="name">${product.name ?? ''}</div>
           <div class="content">
             <div><strong>سعر:</strong> ${product.sellPrice ?? ''} EGP</div>
-            <div><strong>كود:</strong> ${product.code ?? ''}</div>
           </div>
           <svg id="barcode" class="barcode"></svg>
         </div>
@@ -510,6 +501,7 @@ function Products() {
   printWindow.document.write(htmlContent);
   printWindow.document.close();
 };
+
 
 
   return (
