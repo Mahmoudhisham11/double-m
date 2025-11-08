@@ -437,41 +437,46 @@ const handlePrintLabel = (product) => {
             align-items: center;
           }
 
-          .label {
-            width: 100%;
-            height: 100%;
-            padding: 1mm;
-            box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            align-items: center;
-            overflow: hidden;
-            text-align: center;
-          }
+         .label {
+  width: 100%;
+  height: 100%;
+  padding: 0.5mm;          /* أقل من قبل */
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;  /* العناصر أقرب لبعض */
+  align-items: center;
+  overflow: hidden;
+  text-align: center;
+  gap: 0.5mm;               /* مسافة صغيرة بين العناصر */
+}
 
-          .name {
-            font-size: 7.5pt; /* أصغر عشان ما يطلعش */
-            font-weight: bold;
-            line-height: 1;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 100%;
-          }
+.name {
+  font-size: 7.5pt;
+  font-weight: bold;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  margin-bottom: 0.3mm;     /* مسافة صغيرة تحت الاسم */
+}
 
-          .price {
-            font-size: 7pt;
-            line-height: 1;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-          }
+.price {
+  font-size: 7pt;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 0.3mm;     /* مسافة صغيرة تحت السعر */
+}
 
-          svg.barcode {
-            width: 36mm;
-            height: 10mm;
-          }
+svg.barcode {
+  width: 36mm;
+  height: 10mm;
+  margin-top: 0;            /* بدون مسافة إضافية */
+}
+
         </style>
       </head>
       <body>
