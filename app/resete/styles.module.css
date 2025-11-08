@@ -106,7 +106,9 @@
     .resete {
         background: none;
         width: 100%;
-        height: 100vh; /* طول الصفحة بالكامل */
+        height: auto; /* الطول يتحدد حسب محتوى الفاتورة */
+        min-height: 50px; /* طول أقل للفاتورة الصغيرة */
+        max-width: 384px; /* عرض ثابت حسب طابعة 80mm */
         margin: 0;
         padding: 0;
         display: flex;
