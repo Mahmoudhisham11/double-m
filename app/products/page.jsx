@@ -433,7 +433,7 @@ function Products() {
             }
             .label {
               width: 100%;
-              height: 100%;
+              height: auto;
               box-sizing: border-box;
               padding: 2mm;
               display: flex;
