@@ -56,7 +56,7 @@ function SideBar({openSideBar, setOpenSideBar}) {
                     <span><TbReportSearch/></span>
                     <span>التقارير</span>
                 </Link>
-                {localStorage.getItem('userName') === "mostafabeso10@gmail.com" && 
+                {typeof window !== 'undefined' && localStorage.getItem('userName') === "mostafabeso10@gmail.com" && 
                   <Link href={'/profit'} className={styles.actionLinks}>
                     <span><TbReportSearch/></span>
                     <span>الارباح</span>

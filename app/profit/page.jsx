@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { collection, getDocs, query, where, addDoc, Timestamp, deleteDoc, doc, updateDoc } from "firebase/firestore";
 
 export default function Profit() {
-  const shop = typeof window !== "undefined" ? localStorage.getItem('shop') : "";
+  const [shop, setShop] = useState('')
   const [reports, setReports] = useState([]);
   const [withdraws, setWithdraws] = useState([]);
   const [cashTotal, setCashTotal] = useState(0);
@@ -22,6 +22,12 @@ export default function Profit() {
   const [payAmount, setPayAmount] = useState("");
   const [payPerson, setPayPerson] = useState("");
   const [payWithdrawId, setPayWithdrawId] = useState(null);
+
+ useEffect(() => {
+    if(typeof window !== 'undefined') {
+      setShop(localStorage.getItem('shop'))
+    }
+  })
 
   const parseDate = (val) => {
     if (!val && val !== 0) return null;
