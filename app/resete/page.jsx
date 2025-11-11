@@ -42,10 +42,9 @@ function Resete() {
     <div className={styles.resete}>
       <div className={styles.title}>
         <button onClick={() => router.push('/')} className={styles.btnBack}>رجوع</button>
-        <h2>DOUBLE M</h2>
-        {/* <div className={styles.imageContainer}>
+        <div className={styles.imageContainer}>
           <Image src={resetImage} fill style={{ objectFit: 'cover' }} alt="logo" />
-        </div> */}
+        </div>
       </div>
 
       {/* عرض الفاتورة على الشاشة */}

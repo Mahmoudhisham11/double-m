@@ -56,10 +56,12 @@ function SideBar({openSideBar, setOpenSideBar}) {
                     <span><TbReportSearch/></span>
                     <span>التقارير</span>
                 </Link>
-                {/* <Link href={'/balance'} className={styles.actionLinks}>
-                    <span><GoGraph /></span>
-                    <span>الارصدة</span>
-                </Link> */}
+                {localStorage.getItem('userName') === "mostafabeso10@gmail.com" && 
+                  <Link href={'/profit'} className={styles.actionLinks}>
+                    <span><TbReportSearch/></span>
+                    <span>الارباح</span>
+                </Link>  
+                }
             </div>
             <div className={styles.logout}>
                 <Link href={'/settings'} className={styles.actionLinks}>

@@ -9,7 +9,7 @@ import { FaUser } from "react-icons/fa";
 import { FaPhone } from "react-icons/fa";
 import { FaBars } from "react-icons/fa6";
 import {
-  collection, query, where, onSnapshot, addDoc, updateDoc, doc, deleteDoc, getDocs, getDoc, writeBatch
+  collection, query, where, onSnapshot, addDoc, updateDoc, doc, deleteDoc, getDocs, getDoc, writeBatch,Timestamp
 } from "firebase/firestore";
 import { db } from "@/app/firebase";
 import { useRouter } from "next/navigation";
@@ -812,40 +812,94 @@ function Main() {
   router.push('/resete');
 };
 
+const handleCloseDay = async () => {
+  try {
+    const today = new Date();
+    const day = String(today.getDate()).padStart(2, '0');
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const year = today.getFullYear();
+    const todayStr = `${day}/${month}/${year}`; // "DD/MM/YYYY"
 
-  const handleCloseDay = async () => {
-    try {
-      const q = query(collection(db, "dailySales"), where("shop", "==", shop));
-      const snapshot = await getDocs(q);
+    // 1️⃣ استعلام عن مبيعات اليوم لنفس المتجر
+    const salesQuery = query(
+      collection(db, "dailySales"), 
+      where("shop", "==", shop)
+    );
+    const salesSnapshot = await getDocs(salesQuery);
 
-      if (snapshot.empty) {
-        alert("لا يوجد عمليات لتقفيلها اليوم");
-        return;
+    if (salesSnapshot.empty) {
+      alert("لا يوجد عمليات لتقفيلها اليوم");
+      return;
+    }
+
+    // 2️⃣ استعلام عن كل المصروفات لنفس المتجر
+    const masrofatQuery = query(
+      collection(db, "masrofat"), 
+      where("shop", "==", shop)
+    );
+    const masrofatSnapshot = await getDocs(masrofatQuery);
+
+    // 3️⃣ حساب إجمالي المبيعات
+    let totalSales = 0;
+    salesSnapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      totalSales += data.total || 0;
+    });
+
+    // 4️⃣ حساب إجمالي المصروفات الخاصة باليوم فقط
+    let totalMasrofat = 0;
+    masrofatSnapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      if (data.date === todayStr) {
+        totalMasrofat += data.masrof || 0;
       }
+    });
 
-      // استخدم Batch لتجميع العمليات لتحسين الأداء
-      const batch = writeBatch(db);
+    // 5️⃣ حساب صافي اليوم
+    const netTotal = totalSales - totalMasrofat;
 
-      for (const docSnap of snapshot.docs) {
-        const data = docSnap.data();
+    // 6️⃣ إنشاء Batch لحفظ التقارير وحذف المبيعات
+    const batch = writeBatch(db);
 
-        // أضف الوثيقة إلى مجموعة التقارير (reports) باستخدام Batch
-        const reportRef = doc(collection(db, "reports"));
-        batch.set(reportRef, data);
+    // حفظ كل مستند من dailySales في reports
+    for (const docSnap of salesSnapshot.docs) {
+      const data = docSnap.data();
+      const reportRef = doc(collection(db, "reports"));
+      batch.set(reportRef, data); // حفظ نسخة من كل عملية في reports
+      batch.delete(docSnap.ref);   // حذف مستند dailySales الأصلي
+    }
 
-        // احذف مستند dailySales الأصلي من خلال Batch
+    // حفظ صافي اليوم في dailyProfit
+    const profitData = {
+      shop,
+      date: todayStr,
+      totalSales,
+      totalMasrofat,
+      netTotal,
+      createdAt: Timestamp.now()
+    };
+    const profitRef = doc(collection(db, "dailyProfit"));
+    batch.set(profitRef, profitData);
+
+    // 7️⃣ حذف كل المصروفات الخاصة باليوم
+    masrofatSnapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      if (data.date === todayStr) {
         batch.delete(docSnap.ref);
       }
+    });
 
-      // نفذ كل العمليات دفعة واحدة
-      await batch.commit();
+    // 8️⃣ تنفيذ كل العمليات دفعة واحدة
+    await batch.commit();
 
-      alert("تم تقفيل اليوم بنجاح ✅");
-    } catch (error) {
-      console.error("خطأ أثناء تقفيل اليوم:", error);
-      alert("حدث خطأ أثناء تقفيل اليوم");
-    }
-  };
+    alert("تم تقفيل اليوم بنجاح ✅");
+  } catch (error) {
+    console.error("خطأ أثناء تقفيل اليوم:", error);
+    alert("حدث خطأ أثناء تقفيل اليوم");
+  }
+};
+
+
 
   const handleDeleteInvoice = async () => {
     if (!shop) return;
@@ -880,15 +934,26 @@ function Main() {
     inv.clientName?.toLowerCase().includes(searchClient.toLowerCase())
   );
 
+// 📅 إنشاء تاريخ اليوم بنفس الصيغة اللي بنخزنها في Firebase
 const today = new Date();
-const todayStr = today.toISOString().split('T')[0]; // "YYYY-MM-DD"
+const day = today.getDate().toString().padStart(2, '0');
+const month = (today.getMonth() + 1).toString().padStart(2, '0');
+const year = today.getFullYear();
+const todayStr = `${day}/${month}/${year}`;
 
-const todaysMasrofat = masrofat.filter(i => {
-  // نفترض i.date شكل "YYYY-MM-DD"
-  return i.date === todayStr;
-});
+// ✅ فلترة المصروفات الخاصة بتاريخ اليوم فقط
+const todaysMasrofat = masrofat.filter(i => i.date === todayStr);
 
-const totalMasrofat = todaysMasrofat.reduce((sum, i) => sum + (i.masrof || 0), 0);
+// ✅ حساب إجمالي المصروفات بتاعة اليوم
+const totalMasrofat = todaysMasrofat.reduce((sum, i) => sum + Number(i.masrof || 0), 0);
+
+// ✅ عرض النتائج في الكونسول (اختياري للتأكد)
+console.log("📅 تاريخ اليوم:", todayStr);
+console.log("🧾 المصروفات النهارده:", todaysMasrofat);
+console.log("💰 إجمالي مصاريف النهارده:", totalMasrofat);
+
+
+
 const totalSales = filteredInvoices.reduce((sum, i) => sum + (i.total || 0), 0);
 const finallyTotal = Number(totalSales) - Number(totalMasrofat);
 
