@@ -98,19 +98,16 @@ export default function Profit() {
     const to = parseDate(dateTo || dateFrom) || new Date();
     to.setHours(23, 59, 59, 999);
 
-    // فلترة dailyProfit
     const filteredDaily = dailyProfitData.filter(d => {
       const dDate = parseDate(d.date || d.createdAt);
       return dDate && dDate >= from && dDate <= to;
     });
 
-    // فلترة reports
     const filteredReports = reports.filter(r => {
       const rDate = parseDate(r.date || r.createdAt);
       return rDate && rDate >= from && rDate <= to;
     });
 
-    // فلترة withdraws
     const filteredWithdraws = withdraws.filter(w => {
       const wDate = parseDate(w.date || w.createdAt);
       return wDate && wDate >= from && wDate <= to;
@@ -121,7 +118,6 @@ export default function Profit() {
     const totalCash = filteredDaily.reduce((sum, d) => sum + (d.totalSales || 0), 0);
     let remainingCash = totalCash - totalMasrofat;
 
-    // خصم السحوبات من الخزنة
     filteredWithdraws.forEach(w => {
       const remaining = (w.amount || 0) - (w.paid || 0);
       remainingCash -= remaining;
@@ -153,7 +149,7 @@ export default function Profit() {
 
   }, [dateFrom, dateTo, dailyProfitData, reports, withdraws, shop]);
 
-  // عمليات السحب والدفع
+  // عمليات السحب
   const handleWithdraw = async () => {
     if (!withdrawPerson || !withdrawAmount) return alert("اختر الشخص واكتب المبلغ");
     const amount = Number(withdrawAmount);
@@ -182,6 +178,7 @@ export default function Profit() {
   const handleDeleteWithdraw = async (id) => {
     if (!id) return;
     try {
+      const withdraw = withdraws.find(w => w.id === id);
       await deleteDoc(doc(db, "withdraws", id));
       setWithdraws(prev => prev.filter(w => w.id !== id));
     } catch (error) {
