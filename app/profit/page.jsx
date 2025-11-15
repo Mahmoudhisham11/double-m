@@ -102,22 +102,31 @@ export default function Profit() {
   useEffect(() => {
     if (!shop) return;
 
-    const from = parseDate(dateFrom) || new Date("1970-01-01");
-    const to = parseDate(dateTo) || new Date();
-    to.setHours(23, 59, 59, 999);
+    // تعديل هنا لضمان شمول اليوم بالكامل
+    const from = dateFrom ? new Date(dateFrom + "T00:00:00") : new Date("1970-01-01");
+    const to = dateTo ? new Date(dateTo + "T23:59:59") : new Date();
 
     const filteredDaily = dailyProfitData.filter(d => {
-      const dDate = parseDate(d.date || d.createdAt);
+      let dDate = d.createdAt?.seconds 
+        ? new Date(d.createdAt.seconds * 1000) 
+        : d.date ? new Date(d.date.split('/').reverse().join('-')) 
+        : null;
       return dDate && dDate >= from && dDate <= to;
     });
 
     const filteredReports = reports.filter(r => {
-      const rDate = parseDate(r.date || r.createdAt);
+      let rDate = r.createdAt?.seconds 
+        ? new Date(r.createdAt.seconds * 1000) 
+        : r.date ? new Date(r.date.split('/').reverse().join('-')) 
+        : null;
       return rDate && rDate >= from && rDate <= to;
     });
 
     const filteredWithdraws = withdraws.filter(w => {
-      const wDate = parseDate(w.date || w.createdAt);
+      let wDate = w.createdAt?.seconds 
+        ? new Date(w.createdAt.seconds * 1000) 
+        : w.date ? new Date(w.date.split('/').reverse().join('-')) 
+        : null;
       if (!wDate) return true;
       return wDate >= from && wDate <= to;
     });
@@ -166,14 +175,14 @@ export default function Profit() {
       shop,
       person: withdrawPerson,
       amount,
-      date: new Date().toLocaleDateString("ar-EG"),
+      date: new Date().toLocaleDateString("en-GB"),
       createdAt: Timestamp.now(),
       paid: 0
     });
 
     setWithdraws(prev => [
       ...prev,
-      { id: docRef.id, person: withdrawPerson, amount, date: new Date().toLocaleDateString("ar-EG"), createdAt: Timestamp.now(), paid: 0 },
+      { id: docRef.id, person: withdrawPerson, amount, date: new Date().toLocaleDateString("en-GB"), createdAt: Timestamp.now(), paid: 0 },
     ]);
 
     setWithdrawPerson("");
@@ -288,7 +297,7 @@ export default function Profit() {
                   <td>{isHidden ? "*****" : w.amount}</td>
                   <td>{isHidden ? "*****" : (w.paid || 0)}</td>
                   <td>{isHidden ? "*****" : (w.amount - (w.paid || 0))}</td>
-                  <td>{w.createdAt?.seconds ? new Date(w.createdAt.seconds * 1000).toLocaleDateString("ar-EG") : w.date || "—"}</td>
+                  <td>{w.createdAt?.seconds ? new Date(w.createdAt.seconds * 1000).toLocaleDateString("en-GB") : w.date || "—"}</td>
                   <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.delBtn} onClick={() => handleDeleteWithdraw(w.id)}>حذف</button>}</td>
                   <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.payBtn} onClick={() => handleOpenPay(w)}>سداد</button>}</td>
                 </tr>
