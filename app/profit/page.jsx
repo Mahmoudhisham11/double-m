@@ -22,7 +22,7 @@ export default function Profit() {
   const [showPopup, setShowPopup] = useState(false);
   const [withdrawPerson, setWithdrawPerson] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
-  const [withdrawNote, setWithdrawNote] = useState(""); // حقل الملاحظات للسحب
+  const [withdrawNote, setWithdrawNote] = useState(""); // حقل ملاحظات للسحب
   const [showPayPopup, setShowPayPopup] = useState(false);
   const [payAmount, setPayAmount] = useState("");
   const [payPerson, setPayPerson] = useState("");
@@ -30,7 +30,7 @@ export default function Profit() {
   const [isHidden, setIsHidden] = useState(true);
   const [showAddCashPopup, setShowAddCashPopup] = useState(false);
   const [addCashAmount, setAddCashAmount] = useState("");
-  const [addCashNote, setAddCashNote] = useState(""); // حقل الملاحظات للخزنة
+  const [addCashNote, setAddCashNote] = useState(""); // حقل ملاحظات لإضافة الخزنة
 
   const arabicToEnglishNumbers = (str) => {
     if (!str) return str;
@@ -43,7 +43,6 @@ export default function Profit() {
     if (val instanceof Date) return val;
     if (val?.toDate) return val.toDate();
     if (val?.seconds) return new Date(val.seconds * 1000);
-
     if (typeof val === "string") {
       val = arabicToEnglishNumbers(val.trim());
       const dmyMatch = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -109,7 +108,6 @@ export default function Profit() {
 
   useEffect(() => {
     if (!shop) return;
-
     const from = dateFrom ? new Date(dateFrom + "T00:00:00") : new Date("1970-01-01");
     const to = dateTo ? new Date(dateTo + "T23:59:59") : new Date();
 
@@ -174,7 +172,7 @@ export default function Profit() {
       shop,
       person: withdrawPerson,
       amount,
-      note: withdrawNote || "", // حفظ الملاحظات
+      note: withdrawNote || "",
       date: newDate,
       createdAt: Timestamp.now(),
       paid: 0
@@ -230,19 +228,19 @@ export default function Profit() {
     if (!amount || amount <= 0) return alert("ادخل مبلغ صالح");
 
     const newDate = formatDate(new Date());
-    const docRef = await addDoc(collection(db, "dailyProfit"), {
+    const docRef = await addDoc(collection(db, "withdraws"), { // أضف كـ withdraw لتظهر في الجدول
       shop,
-      totalSales: amount,
-      totalMasrofat: 0,
-      returnedProfit: 0,
-      note: addCashNote || "", // حفظ الملاحظات
+      person: "الخزنة",
+      amount,
+      note: addCashNote || "",
       date: newDate,
       createdAt: Timestamp.now(),
+      paid: 0
     });
 
     setWithdraws(prev => [
       ...prev,
-      { id: docRef.id, person: "الخزنة", amount, note: addCashNote || "", date: newDate, createdAt: Timestamp.now(), paid: 0 },
+      { id: docRef.id, person: "الخزنة", amount, note: addCashNote || "", date: newDate, createdAt: Timestamp.now(), paid: 0 }
     ]);
 
     setAddCashAmount("");
@@ -250,6 +248,9 @@ export default function Profit() {
     setShowAddCashPopup(false);
     fetchData();
   };
+
+  // دمج السجلات مع إضافة حقل note في الجدول
+  const combinedWithdraws = withdraws;
 
   return (
     <div className={styles.profit}>
@@ -294,21 +295,21 @@ export default function Profit() {
                 <th>المبلغ</th>
                 <th>المدفوع</th>
                 <th>المتبقي</th>
-                <th>الملاحظات</th>
                 <th>التاريخ</th>
+                <th>ملاحظات</th>
                 <th>حذف</th>
                 <th>سداد</th>
               </tr>
             </thead>
             <tbody>
-              {withdraws.map(w => (
+              {combinedWithdraws.map(w => (
                 <tr key={w.id}>
                   <td>{w.person}</td>
                   <td>{isHidden ? "*****" : w.amount}</td>
                   <td>{isHidden ? "*****" : (w.paid || 0)}</td>
                   <td>{isHidden ? "*****" : (w.amount - (w.paid || 0))}</td>
-                  <td>{w.note || ""}</td>
                   <td>{formatDate(parseDate(w.date) || parseDate(w.createdAt))}</td>
+                  <td>{w.note || ""}</td>
                   <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.delBtn} onClick={() => handleDeleteWithdraw(w.id)}>حذف</button>}</td>
                   <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.payBtn} onClick={() => handleOpenPay(w)}>سداد</button>}</td>
                 </tr>
