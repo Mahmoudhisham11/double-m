@@ -37,6 +37,7 @@ export default function Profit() {
     return str.replace(/[٠-٩]/g, d => map[d]);
   };
 
+  // دالة موحدة لتحويل أي نوع تاريخ إلى Date
   const parseDate = (val) => {
     if (!val) return null;
     if (val instanceof Date) return val;
@@ -44,22 +45,30 @@ export default function Profit() {
     if (val?.seconds) return new Date(val.seconds * 1000);
 
     if (typeof val === "string") {
-      val = arabicToEnglishNumbers(val);
-      const isoMatch = val.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
-      if (isoMatch) {
-        const [, y, m, d] = isoMatch;
-        return new Date(Number(y), Number(m) - 1, Number(d));
-      }
-      const dmyMatch = val.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      val = arabicToEnglishNumbers(val.trim());
+      const dmyMatch = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
       if (dmyMatch) {
         const [, d, m, y] = dmyMatch;
         return new Date(Number(y), Number(m) - 1, Number(d));
       }
-
+      const isoMatch = val.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if (isoMatch) {
+        const [, y, m, d] = isoMatch;
+        return new Date(Number(y), Number(m) - 1, Number(d));
+      }
       const tryDate = new Date(val);
       if (!isNaN(tryDate)) return tryDate;
     }
     return null;
+  };
+
+  // تحويل التاريخ لعرض DD/MM/YYYY
+  const formatDate = (date) => {
+    if (!date) return "—";
+    const d = date.getDate().toString().padStart(2, '0');
+    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+    const y = date.getFullYear();
+    return `${d}/${m}/${y}`;
   };
 
   useEffect(() => {
@@ -102,31 +111,21 @@ export default function Profit() {
   useEffect(() => {
     if (!shop) return;
 
-    // تعديل هنا لضمان شمول اليوم بالكامل
     const from = dateFrom ? new Date(dateFrom + "T00:00:00") : new Date("1970-01-01");
     const to = dateTo ? new Date(dateTo + "T23:59:59") : new Date();
 
     const filteredDaily = dailyProfitData.filter(d => {
-      let dDate = d.createdAt?.seconds 
-        ? new Date(d.createdAt.seconds * 1000) 
-        : d.date ? new Date(d.date.split('/').reverse().join('-')) 
-        : null;
+      const dDate = parseDate(d.date) || parseDate(d.createdAt);
       return dDate && dDate >= from && dDate <= to;
     });
 
     const filteredReports = reports.filter(r => {
-      let rDate = r.createdAt?.seconds 
-        ? new Date(r.createdAt.seconds * 1000) 
-        : r.date ? new Date(r.date.split('/').reverse().join('-')) 
-        : null;
+      const rDate = parseDate(r.date) || parseDate(r.createdAt);
       return rDate && rDate >= from && rDate <= to;
     });
 
     const filteredWithdraws = withdraws.filter(w => {
-      let wDate = w.createdAt?.seconds 
-        ? new Date(w.createdAt.seconds * 1000) 
-        : w.date ? new Date(w.date.split('/').reverse().join('-')) 
-        : null;
+      const wDate = parseDate(w.date) || parseDate(w.createdAt);
       if (!wDate) return true;
       return wDate >= from && wDate <= to;
     });
@@ -171,18 +170,19 @@ export default function Profit() {
     if (amount <= 0) return alert("المبلغ غير صالح");
     if (amount > cashTotal) return alert("رصيد الخزنة غير كافي");
 
+    const newDate = formatDate(new Date());
     const docRef = await addDoc(collection(db, "withdraws"), {
       shop,
       person: withdrawPerson,
       amount,
-      date: new Date().toLocaleDateString("en-GB"),
+      date: newDate,
       createdAt: Timestamp.now(),
       paid: 0
     });
 
     setWithdraws(prev => [
       ...prev,
-      { id: docRef.id, person: withdrawPerson, amount, date: new Date().toLocaleDateString("en-GB"), createdAt: Timestamp.now(), paid: 0 },
+      { id: docRef.id, person: withdrawPerson, amount, date: newDate, createdAt: Timestamp.now(), paid: 0 },
     ]);
 
     setWithdrawPerson("");
@@ -228,18 +228,19 @@ export default function Profit() {
     const amount = Number(addCashAmount);
     if (!amount || amount <= 0) return alert("ادخل مبلغ صالح");
 
+    const newDate = formatDate(new Date());
     await addDoc(collection(db, "dailyProfit"), {
       shop,
       totalSales: amount,
       totalMasrofat: 0,
       returnedProfit: 0,
-      date: new Date().toLocaleDateString("en-GB"),
+      date: newDate,
       createdAt: Timestamp.now(),
     });
 
     setAddCashAmount("");
     setShowAddCashPopup(false);
-    fetchData(); // لتحديث الخزنة
+    fetchData();
   };
 
   return (
@@ -297,7 +298,7 @@ export default function Profit() {
                   <td>{isHidden ? "*****" : w.amount}</td>
                   <td>{isHidden ? "*****" : (w.paid || 0)}</td>
                   <td>{isHidden ? "*****" : (w.amount - (w.paid || 0))}</td>
-                  <td>{w.createdAt?.seconds ? new Date(w.createdAt.seconds * 1000).toLocaleDateString("en-GB") : w.date || "—"}</td>
+                  <td>{formatDate(parseDate(w.date) || parseDate(w.createdAt))}</td>
                   <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.delBtn} onClick={() => handleDeleteWithdraw(w.id)}>حذف</button>}</td>
                   <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.payBtn} onClick={() => handleOpenPay(w)}>سداد</button>}</td>
                 </tr>
