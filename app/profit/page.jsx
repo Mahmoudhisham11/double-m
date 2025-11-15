@@ -22,7 +22,7 @@ export default function Profit() {
   const [showPopup, setShowPopup] = useState(false);
   const [withdrawPerson, setWithdrawPerson] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
-  const [withdrawNote, setWithdrawNote] = useState(""); // حقل ملاحظات للسحب
+  const [withdrawNote, setWithdrawNote] = useState("");
   const [showPayPopup, setShowPayPopup] = useState(false);
   const [payAmount, setPayAmount] = useState("");
   const [payPerson, setPayPerson] = useState("");
@@ -30,19 +30,23 @@ export default function Profit() {
   const [isHidden, setIsHidden] = useState(true);
   const [showAddCashPopup, setShowAddCashPopup] = useState(false);
   const [addCashAmount, setAddCashAmount] = useState("");
-  const [addCashNote, setAddCashNote] = useState(""); // حقل ملاحظات لإضافة الخزنة
+  const [addCashNote, setAddCashNote] = useState("");
+  const [lastResetTimestamp, setLastResetTimestamp] = useState(null); // لتسجيل آخر تصفير
 
+  // تحويل الأرقام العربية إلى إنجليزية
   const arabicToEnglishNumbers = (str) => {
     if (!str) return str;
     const map = { '٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9' };
     return str.replace(/[٠-٩]/g, d => map[d]);
   };
 
+  // دالة موحدة لتحويل أي نوع تاريخ إلى Date
   const parseDate = (val) => {
     if (!val) return null;
     if (val instanceof Date) return val;
     if (val?.toDate) return val.toDate();
     if (val?.seconds) return new Date(val.seconds * 1000);
+
     if (typeof val === "string") {
       val = arabicToEnglishNumbers(val.trim());
       const dmyMatch = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -61,6 +65,7 @@ export default function Profit() {
     return null;
   };
 
+  // تحويل التاريخ لعرض DD/MM/YYYY
   const formatDate = (date) => {
     if (!date) return "—";
     const d = date.getDate().toString().padStart(2, '0');
@@ -74,6 +79,8 @@ export default function Profit() {
       setShop(localStorage.getItem('shop'));
       const savedHiddenState = localStorage.getItem('hideFinance');
       if (savedHiddenState !== null) setIsHidden(savedHiddenState === 'true');
+      const savedReset = localStorage.getItem('lastResetTimestamp');
+      if (savedReset) setLastResetTimestamp(new Date(Number(savedReset)));
     }
   }, []);
 
@@ -106,8 +113,20 @@ export default function Profit() {
 
   useEffect(() => { fetchData(); }, [shop]);
 
+  // دالة لتصفير الأرباح والسحوبات بعد وقت معين
+  const handleResetBalances = () => {
+    setProfit(0);
+    setMostafaBalance(0);
+    setMidoBalance(0);
+    setDoubleMBalance(0);
+    const now = new Date();
+    setLastResetTimestamp(now);
+    if (typeof window !== 'undefined') localStorage.setItem('lastResetTimestamp', now.getTime());
+  };
+
   useEffect(() => {
     if (!shop) return;
+
     const from = dateFrom ? new Date(dateFrom + "T00:00:00") : new Date("1970-01-01");
     const to = dateTo ? new Date(dateTo + "T23:59:59") : new Date();
 
@@ -127,34 +146,40 @@ export default function Profit() {
       return wDate >= from && wDate <= to;
     });
 
+    // الخزنة
     const totalMasrofat = filteredDaily.reduce((sum, d) => sum + (d.totalMasrofat || 0), 0);
     const totalCash = filteredDaily.reduce((sum, d) => sum + (d.totalSales || 0), 0);
     let remainingCash = totalCash - totalMasrofat;
 
-    // حساب الرصيد الحقيقي للخزنة بناءً على السحب والإضافات
     filteredWithdraws.forEach(w => {
       const remaining = (w.amount || 0) - (w.paid || 0);
-      if (w.person === "الخزنة") {
-        // الإضافات تزيد الخزنة
-        remainingCash += remaining;
-      } else {
-        remainingCash -= remaining;
-      }
+      remainingCash -= remaining;
     });
     setCashTotal(remainingCash);
 
-    let remainingProfit = filteredReports.reduce((sum, r) => {
-      if (!r.cart || !Array.isArray(r.cart)) return sum;
-      return sum + r.cart.reduce((s, item) => s + ((item.sellPrice || 0) - (item.buyPrice || 0)) * (item.quantity || 0), 0);
-    }, 0);
-
+    // الأرباح والسحوبات بعد التصفير
+    let remainingProfit = 0;
     let mostafaSum = 0, midoSum = 0, doubleMSum = 0;
+
+    filteredReports.forEach(r => {
+      const rDate = parseDate(r.date) || parseDate(r.createdAt);
+      const include = !lastResetTimestamp || rDate < lastResetTimestamp;
+      if (r.cart && Array.isArray(r.cart)) {
+        const sum = r.cart.reduce((s, item) => s + ((item.sellPrice || 0) - (item.buyPrice || 0)) * (item.quantity || 0), 0);
+        remainingProfit += include ? sum : 0; // قبل التصفير فقط
+      }
+    });
+
     filteredWithdraws.forEach(w => {
+      const wDate = parseDate(w.date) || parseDate(w.createdAt);
+      const include = !lastResetTimestamp || wDate < lastResetTimestamp;
       const remaining = (w.amount || 0) - (w.paid || 0);
-      if (w.person !== "الخزنة") remainingProfit -= remaining;
-      if (w.person === "مصطفى") mostafaSum += remaining;
-      if (w.person === "ميدو") midoSum += remaining;
-      if (w.person === "دبل M") doubleMSum += remaining;
+      if (include) {
+        remainingProfit -= remaining;
+        if (w.person === "مصطفى") mostafaSum += remaining;
+        if (w.person === "ميدو") midoSum += remaining;
+        if (w.person === "دبل M") doubleMSum += remaining;
+      }
     });
 
     const returnedProfit = filteredDaily.reduce((sum, d) => sum + (d.returnedProfit || 0), 0);
@@ -165,7 +190,7 @@ export default function Profit() {
     setMidoBalance(midoSum);
     setDoubleMBalance(doubleMSum);
 
-  }, [dateFrom, dateTo, dailyProfitData, reports, withdraws, shop]);
+  }, [dateFrom, dateTo, dailyProfitData, reports, withdraws, shop, lastResetTimestamp]);
 
   const handleWithdraw = async () => {
     if (!withdrawPerson || !withdrawAmount) return alert("اختر الشخص واكتب المبلغ");
@@ -189,8 +214,6 @@ export default function Profit() {
       { id: docRef.id, person: withdrawPerson, amount, note: withdrawNote || "", date: newDate, createdAt: Timestamp.now(), paid: 0 },
     ]);
 
-    setCashTotal(prev => prev - amount); // السحب يقلل الخزنة
-
     setWithdrawPerson("");
     setWithdrawAmount("");
     setWithdrawNote("");
@@ -200,12 +223,6 @@ export default function Profit() {
   const handleDeleteWithdraw = async (id) => {
     if (!id) return;
     try {
-      const w = withdraws.find(w => w.id === id);
-      if (w) {
-        // إذا كانت إضافة للخزنة، حذفها يقلل الخزنة، وإذا كانت سحب يزيد الخزنة
-        if (w.person === "الخزنة") setCashTotal(prev => prev - (w.amount - (w.paid || 0)));
-        else setCashTotal(prev => prev + (w.amount - (w.paid || 0)));
-      }
       await deleteDoc(doc(db, "withdraws", id));
       setWithdraws(prev => prev.filter(w => w.id !== id));
     } catch (error) {
@@ -234,11 +251,6 @@ export default function Profit() {
     await updateDoc(withdrawRef, { paid: (withdraw.paid || 0) + amount });
 
     setWithdraws(prev => prev.map(w => w.id === payWithdrawId ? { ...w, paid: (w.paid || 0) + amount } : w));
-
-    // تعديل الخزنة حسب نوع العملية
-    if (withdraw.person === "الخزنة") setCashTotal(prev => prev - amount); // سداد من الخزنة يقلل الرصيد
-    else setCashTotal(prev => prev + amount); // سداد السحب يزيد الرصيد
-
     setShowPayPopup(false);
   };
 
@@ -247,26 +259,20 @@ export default function Profit() {
     if (!amount || amount <= 0) return alert("ادخل مبلغ صالح");
 
     const newDate = formatDate(new Date());
-    const docRef = await addDoc(collection(db, "withdraws"), {
+    await addDoc(collection(db, "dailyProfit"), {
       shop,
-      person: "الخزنة",
-      amount,
+      totalSales: amount,
+      totalMasrofat: 0,
+      returnedProfit: 0,
       note: addCashNote || "",
       date: newDate,
       createdAt: Timestamp.now(),
-      paid: 0
     });
-
-    setWithdraws(prev => [
-      ...prev,
-      { id: docRef.id, person: "الخزنة", amount, note: addCashNote || "", date: newDate, createdAt: Timestamp.now(), paid: 0 }
-    ]);
-
-    setCashTotal(prev => prev + amount); // الإضافة تزيد الخزنة
 
     setAddCashAmount("");
     setAddCashNote("");
     setShowAddCashPopup(false);
+    fetchData();
   };
 
   return (
@@ -286,6 +292,9 @@ export default function Profit() {
 
         <button onClick={toggleHidden} className={styles.withdrawBtn} style={{ marginTop: '15px' }}>
           {isHidden ? "👁️ إظهار الأرقام" : "🙈 إخفاء الأرقام"}
+        </button>
+        <button onClick={handleResetBalances} className={styles.withdrawBtn} style={{ marginLeft: '10px', marginTop:'15px' }}>
+          تصفير الأرباح والسحوبات
         </button>
 
         <div className={styles.cardContent}>
@@ -326,7 +335,7 @@ export default function Profit() {
                   <td>{isHidden ? "*****" : (w.paid || 0)}</td>
                   <td>{isHidden ? "*****" : (w.amount - (w.paid || 0))}</td>
                   <td>{formatDate(parseDate(w.date) || parseDate(w.createdAt))}</td>
-                  <td>{w.note || ""}</td>
+                  <td>{w.note || "—"}</td>
                   <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.delBtn} onClick={() => handleDeleteWithdraw(w.id)}>حذف</button>}</td>
                   <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.payBtn} onClick={() => handleOpenPay(w)}>سداد</button>}</td>
                 </tr>
