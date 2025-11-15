@@ -577,44 +577,127 @@
 
           {!showReturns && (
             <div className={styles.tableContainer}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>اسم العميل</th>
-                    <th>رقم الهاتف</th>
-                    <th>عدد العناصر</th>
-                    <th>الإجمالي</th>
-                    <th>التاريخ</th>
-                    <th>عرض التفاصيل</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {displayedReports.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} style={{ textAlign: "center", padding: 20 }}>
-                        لا توجد تقارير في الفترة المحددة.
-                      </td>
-                    </tr>
-                  ) : (
-                    displayedReports.map((report) => {
-                      const total = Number(report.total ?? report.subtotal ?? 0);
-                      return (
-                        <tr key={report.id}>
-                          <td>{report.clientName || "-"}</td>
-                          <td>{report.phone || "-"}</td>
-                          <td>{report.cart?.length || 0}</td>
-                          <td>{total} EGP</td>
-                          <td>{report.date ? new Date(report.date.seconds * 1000).toLocaleDateString("ar-EG") : "-"}</td>
-                          <td>
-                            <button className={styles.detailsBtn} onClick={() => openDrawer(report)}>عرض التفاصيل</button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+  <table>
+    <thead>
+      <tr>
+        {showDeleted ? (
+          <>
+            <th>اسم المنتج</th>
+            <th>الكمية</th>
+            <th>سعر البيع</th>
+            <th>تاريخ الحذف</th>
+          </>
+        ) : showReturns ? (
+          <>
+            <th>المنتج</th>
+            <th>الكمية</th>
+            <th>سعر البيع</th>
+            <th>تاريخ الفاتورة الأصلية</th>
+            <th>تاريخ المرتجع</th>
+          </>
+        ) : (
+          <>
+            <th>اسم العميل</th>
+            <th>رقم الهاتف</th>
+            <th>عدد العناصر</th>
+            <th>الإجمالي</th>
+            <th>التاريخ</th>
+            <th>عرض التفاصيل</th>
+          </>
+        )}
+      </tr>
+    </thead>
+    <tbody>
+      {showDeleted ? (
+        deletedProducts.length === 0 ? (
+          <tr>
+            <td colSpan={4} style={{ textAlign: "center", padding: 20 }}>
+              لا توجد منتجات محذوفة.
+            </td>
+          </tr>
+        ) : (
+          deletedProducts.map((item) => {
+            const delMs = toMillis(item.deletedAt);
+            const delDateStr = delMs
+              ? new Date(delMs).toLocaleDateString("ar-EG")
+              : item.deletedAt || "-";
+            return (
+              <tr key={item.id}>
+                <td>{item.name}</td>
+                <td>{item.quantity}</td>
+                <td>{item.sellPrice}</td>
+                <td>{delDateStr}</td>
+              </tr>
+            );
+          })
+        )
+      ) : showReturns ? (
+        displayedReturns.length === 0 ? (
+          <tr>
+            <td colSpan={5} style={{ textAlign: "center", padding: 20 }}>
+              لا توجد مرتجعات في الفترة المحددة.
+            </td>
+          </tr>
+        ) : (
+          displayedReturns.map((ret) => {
+            const origMs = toMillis(ret.originalDate);
+            const origDateStr = origMs
+              ? new Date(origMs).toLocaleDateString("ar-EG")
+              : ret.originalDate || "-";
+            const retMs = toMillis(ret.returnDate);
+            const retDateStr = retMs
+              ? new Date(retMs).toLocaleDateString("ar-EG")
+              : ret.returnDate || "-";
+
+            return (
+              <tr key={ret.id}>
+                <td>{ret.item?.name}</td>
+                <td>{ret.item?.quantity}</td>
+                <td>{ret.item?.sellPrice}</td>
+                <td>{origDateStr}</td>
+                <td>{retDateStr}</td>
+              </tr>
+            );
+          })
+        )
+      ) : displayedReports.length === 0 ? (
+        <tr>
+          <td colSpan={6} style={{ textAlign: "center", padding: 20 }}>
+            لا توجد تقارير في الفترة المحددة.
+          </td>
+        </tr>
+      ) : (
+        displayedReports.map((report) => {
+          const total = Number(report.total ?? report.subtotal ?? 0);
+          return (
+            <tr key={report.id}>
+              <td>{report.clientName || "-"}</td>
+              <td>{report.phone || "-"}</td>
+              <td>{report.cart?.length || 0}</td>
+              <td>{total} EGP</td>
+              <td>
+                {report.date
+                  ? new Date(report.date.seconds * 1000).toLocaleDateString(
+                      "ar-EG"
+                    )
+                  : "-"}
+              </td>
+              <td>
+                <button
+                  className={styles.detailsBtn}
+                  onClick={() => openDrawer(report)}
+                >
+                  عرض التفاصيل
+                </button>
+              </td>
+            </tr>
+          );
+        })
+      )}
+    </tbody>
+  </table>
+</div>
+
           )}
 
           {showReturns && (
@@ -695,55 +778,21 @@
                   </tr>
                 </thead>
                 <tbody>
-                  {showDeleted
-                    ? deletedProducts.length === 0
-                      ? (
-                        <tr>
-                          <td colSpan={6} style={{ textAlign: "center", padding: 20 }}>
-                            لا توجد منتجات محذوفة.
-                          </td>
-                        </tr>
-                      )
-                      : deletedProducts.map((item) => {
-                          const delMs = toMillis(item.deletedAt);
-                          const delDateStr = delMs ? new Date(delMs).toLocaleDateString("ar-EG") : (item.deletedAt || "-");
-                          return (
-                            <tr key={item.id}>
-                              <td>-</td>
-                              <td>-</td>
-                              <td>{item.name}</td>
-                              <td>{item.quantity}</td>
-                              <td>{item.sellPrice}</td>
-                              <td>{delDateStr}</td>
-                            </tr>
-                          );
-                        })
-                    : displayedReports.length === 0
-                      ? (
-                        <tr>
-                          <td colSpan={6} style={{ textAlign: "center", padding: 20 }}>
-                            لا توجد تقارير في الفترة المحددة.
-                          </td>
-                        </tr>
-                      )
-                      : displayedReports.map((report) => {
-                          const total = Number(report.total ?? report.subtotal ?? 0);
-                          return (
-                            <tr key={report.id}>
-                              <td>{report.clientName || "-"}</td>
-                              <td>{report.phone || "-"}</td>
-                              <td>{report.cart?.length || 0}</td>
-                              <td>{total} EGP</td>
-                              <td>{report.date ? new Date(report.date.seconds * 1000).toLocaleDateString("ar-EG") : "-"}</td>
-                              <td>
-                                <button className={styles.detailsBtn} onClick={() => openDrawer(report)}>عرض التفاصيل</button>
-                              </td>
-                            </tr>
-                          );
-                        })
-                  }
+                  {selectedReport.cart?.map((item, index) => (
+                    <tr key={index}>
+                      <td>{item.name} {item.color ? ` - ${item.color}` : ""} {item.size ? ` - ${item.size}` : ""}</td>
+                      <td>{item.sellPrice}</td>
+                      <td>{item.quantity}</td>
+                      <td>{item.condition || "-"}</td>
+                      <td>{item.serial || "-"}</td>
+                      <td>
+                        <button className={styles.returnBtn} onClick={() => handleReturnProduct(item, selectedReport.id)}>
+                          مرتجع
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
-
               </table>
             </div>
 
