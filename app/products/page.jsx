@@ -34,6 +34,10 @@ function Products() {
   const [searchCode, setSearchCode] = useState("");
   const [totalBuy, setTotalBuy] = useState(0);
   const [totalSell, setTotalSell] = useState(0);
+  const [showDeletePopup, setShowDeletePopup] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteForm, setDeleteForm] = useState([]);  
+
   const [form, setForm] = useState({
     name: "",
     buyPrice: "",
@@ -206,31 +210,23 @@ function Products() {
     setColors([]);
   };
 
-  const handleDelete = async (id) => {
-    try {
-      // أولاً: استرجاع بيانات المنتج من lacosteProducts
-      const prodRef = doc(db, "lacosteProducts", id);
-      const prodSnap = await getDoc(prodRef);
-      if (!prodSnap.exists()) {
-        console.warn("لم يتم العثور على المنتج للحذف:", id);
-      } else {
-        const prodData = prodSnap.data();
+  const handleDelete = (product) => {
+  setDeleteTarget(product);
 
-        // إضافة المنتج إلى في الـ collection الجديد deletedProducts مع تاريخ الحذف
-        await addDoc(collection(db, "deletedProducts"), {
-          ...prodData,
-          originalId: id,
-          deletedAt: Timestamp.now(),
-        });
+  // تجهيز فورم الحذف بنفس شكل modal المقاسات
+  const formatted = (product.colors || []).map((c) => ({
+    color: c.color,
+    sizes: (c.sizes || []).map((s) => ({
+      size: s.size,
+      qty: s.qty,
+      deleteQty: 0, // الكمية اللي المستخدم هيحذفها
+    }))
+  }));
 
-        // بعد ما ننسخ، نحذف المنتج من lacosteProducts
-        await deleteDoc(prodRef);
-      }
-    } catch (err) {
-      console.error("❌ خطأ أثناء الحذف والنسخ:", err);
-      alert("حدث خطأ أثناء حذف المنتج، تأكد من الاتصال أو صلاحياتك.");
-    }
-  };
+  setDeleteForm(formatted);
+  setShowDeletePopup(true);
+};
+
 
   const handleEdit = (product) => {
     setEditId(product.id);
@@ -496,6 +492,87 @@ function Products() {
     printWindow.document.write(htmlContent);
     printWindow.document.close();
   };
+  const confirmDeleteSelected = async () => {
+  if (!deleteTarget || !deleteForm.length) return;
+
+  const shop = localStorage.getItem("shop");
+
+  // تجهيز قائمة العناصر اللي هتتحذف فعليًا
+  let deletedList = [];
+
+  deleteForm.forEach(color => {
+    color.sizes.forEach(size => {
+      if (size.deleteQty > 0) {
+        if (size.deleteQty > size.qty) {
+          alert(`لا يمكنك حذف أكثر من الكمية الموجودة للمقاس ${size.size}`);
+          return;
+        }
+        deletedList.push({
+          color: color.color,
+          size: size.size,
+          qty: size.deleteQty,
+        });
+      }
+    });
+  });
+
+  if (deletedList.length === 0) {
+    alert("لم تحدد أي كميات للحذف");
+    return;
+  }
+
+  // 1) إضافة المحذوف إلى deletedProducts
+  await addDoc(collection(db, "deletedProducts"), {
+    ...deleteTarget,
+    deletedParts: deletedList,
+    deletedAt: Timestamp.now(),
+    originalId: deleteTarget.id,
+    shop
+  });
+
+  // 2) تعديل المنتج الأصلي
+  let updatedColors = deleteTarget.colors.map(c => ({
+    color: c.color,
+    sizes: c.sizes.map(s => ({ ...s }))
+  }));
+
+  deletedList.forEach(del => {
+    const col = updatedColors.find(c => c.color === del.color);
+    if (!col) return;
+
+    const size = col.sizes.find(s => s.size === del.size);
+    if (!size) return;
+
+    size.qty -= del.qty;
+  });
+
+  // حذف المقاسات اللي بقت صفر
+  updatedColors = updatedColors.map(c => ({
+    color: c.color,
+    sizes: c.sizes.filter(s => s.qty > 0)
+  })).filter(c => c.sizes.length > 0);
+
+  const productRef = doc(db, "lacosteProducts", deleteTarget.id);
+
+  if (updatedColors.length === 0) {
+    // حذف المنتج بالكامل
+    await deleteDoc(productRef);
+  } else {
+    // تحديث المنتج
+    await updateDoc(productRef, {
+      colors: updatedColors,
+      quantity: updatedColors.reduce(
+        (t, c) => t + c.sizes.reduce((s, x) => s + Number(x.qty || 0), 0),
+        0
+      )
+    });
+  }
+
+  setShowDeletePopup(false);
+  setDeleteTarget(null);
+  setDeleteForm([]);
+};
+
 
   return (
     <div className={styles.products}>
@@ -787,6 +864,73 @@ function Products() {
 
           </>
         )}
+        {showDeletePopup && (
+  <div className={styles.modalOverlay} onClick={() => setShowDeletePopup(false)}>
+    <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+      <div className={styles.modalContent}>
+        <div className={styles.modalHeader}>
+          <h3>حذف جزء من المنتج — {deleteTarget?.name}</h3>
+          <button onClick={() => setShowDeletePopup(false)} className={styles.closeBtn}>✖</button>
+        </div>
+
+        <div className={styles.modalSection}>
+          {deleteForm.map((col, ci) => (
+            <div key={ci} style={{ marginBottom: 20 }}>
+              <h4 style={{ marginBottom: 10 }}>{col.color}</h4>
+
+              {col.sizes.map((sz, si) => (
+                <div
+                  key={si}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "6px 10px",
+                    border: "1px solid #ddd",
+                    borderRadius: 8,
+                    marginBottom: 8,
+                    background: "#fff"
+                  }}
+                >
+                  <div>
+                    <strong>{sz.size}</strong> — موجود: {sz.qty}
+                  </div>
+
+                  <input
+                    type="number"
+                    min="0"
+                    max={sz.qty}
+                    value={sz.deleteQty}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      setDeleteForm(prev => {
+                        const copy = [...prev];
+                        copy[ci].sizes[si].deleteQty = val;
+                        return copy;
+                      });
+                    }}
+                    style={{
+                      width: 70,
+                      padding: 6,
+                      borderRadius: 6,
+                      border: "1px solid #ccc"
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <button onClick={() => setShowDeletePopup(false)} className={styles.btnOutline}>إلغاء</button>
+          <button onClick={confirmDeleteSelected} className={styles.btnPrimary}>حذف</button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
       </div>
     </div>
   );
