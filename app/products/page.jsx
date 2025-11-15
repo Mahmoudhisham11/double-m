@@ -492,85 +492,115 @@ function Products() {
     printWindow.document.write(htmlContent);
     printWindow.document.close();
   };
-  const confirmDeleteSelected = async () => {
+const confirmDeleteSelected = async () => {
   if (!deleteTarget || !deleteForm.length) return;
 
   const shop = localStorage.getItem("shop");
 
   // تجهيز قائمة العناصر اللي هتتحذف فعليًا
-  let deletedList = [];
+  const deletedList = [];
+  let deletedTotalQty = 0;
+  let deletedTotalValue = 0; // بناءً على سعر الشراء في المنتج كافتراض
 
-  deleteForm.forEach(color => {
-    color.sizes.forEach(size => {
-      if (size.deleteQty > 0) {
-        if (size.deleteQty > size.qty) {
-          alert(`لا يمكنك حذف أكثر من الكمية الموجودة للمقاس ${size.size}`);
-          return;
+  // validate using for-loops so we can exit early
+  for (let ci = 0; ci < deleteForm.length; ci++) {
+    const color = deleteForm[ci];
+    for (let si = 0; si < color.sizes.length; si++) {
+      const size = color.sizes[si];
+      const dq = Number(size.deleteQty || 0);
+      const available = Number(size.qty || 0);
+
+      if (dq > 0) {
+        if (dq > available) {
+          alert(`لا يمكنك حذف أكثر من الكمية الموجودة للمقاس ${size.size} (اللون ${color.color})`);
+          return; // خروج فوري لو فيه خطأ
         }
+
+        // تجمع بيانات المحذوف
         deletedList.push({
           color: color.color,
           size: size.size,
-          qty: size.deleteQty,
+          qty: dq,
         });
+
+        deletedTotalQty += dq;
+
+        // حساب قيمة المحذوف — نفترض سعر الشراء للمنتج كله
+        const buyPrice = Number(deleteTarget.buyPrice || 0);
+        deletedTotalValue += buyPrice * dq;
       }
-    });
-  });
+    }
+  }
 
   if (deletedList.length === 0) {
     alert("لم تحدد أي كميات للحذف");
     return;
   }
 
-  // 1) إضافة المحذوف إلى deletedProducts
-  await addDoc(collection(db, "deletedProducts"), {
-    ...deleteTarget,
-    deletedParts: deletedList,
-    deletedAt: Timestamp.now(),
-    originalId: deleteTarget.id,
-    shop
-  });
+  try {
+    // 1) إضافة المحذوف إلى deletedProducts مع تفصيل الكميات وقيمتها
+    await addDoc(collection(db, "deletedProducts"), {
+      ...deleteTarget,
+      deletedParts: deletedList,
+      deletedTotalQty,
+      deletedTotalValue,
+      deletedAt: Timestamp.now(),
+      originalId: deleteTarget.id,
+      shop
+    });
 
-  // 2) تعديل المنتج الأصلي
-  let updatedColors = deleteTarget.colors.map(c => ({
-    color: c.color,
-    sizes: c.sizes.map(s => ({ ...s }))
-  }));
+    // 2) تعديل المنتج الأصلي
+    let updatedColors = deleteTarget.colors.map(c => ({
+      color: c.color,
+      sizes: c.sizes.map(s => ({ ...s }))
+    }));
 
-  deletedList.forEach(del => {
-    const col = updatedColors.find(c => c.color === del.color);
-    if (!col) return;
+    // طرح الكميات المحذوفة
+    deletedList.forEach(del => {
+      const col = updatedColors.find(c => c.color === del.color);
+      if (!col) return;
+      const size = col.sizes.find(s => String(s.size) === String(del.size));
+      if (!size) return;
+      size.qty = Number(size.qty || 0) - Number(del.qty || 0);
+    });
 
-    const size = col.sizes.find(s => s.size === del.size);
-    if (!size) return;
+    // حذف المقاسات اللي بقت صفر
+    updatedColors = updatedColors.map(c => ({
+      color: c.color,
+      sizes: c.sizes.filter(s => Number(s.qty || 0) > 0)
+    })).filter(c => c.sizes.length > 0);
 
-    size.qty -= del.qty;
-  });
+    const productRef = doc(db, "lacosteProducts", deleteTarget.id);
 
-  // حذف المقاسات اللي بقت صفر
-  updatedColors = updatedColors.map(c => ({
-    color: c.color,
-    sizes: c.sizes.filter(s => s.qty > 0)
-  })).filter(c => c.sizes.length > 0);
-
-  const productRef = doc(db, "lacosteProducts", deleteTarget.id);
-
-  if (updatedColors.length === 0) {
-    // حذف المنتج بالكامل
-    await deleteDoc(productRef);
-  } else {
-    // تحديث المنتج
-    await updateDoc(productRef, {
-      colors: updatedColors,
-      quantity: updatedColors.reduce(
+    if (updatedColors.length === 0) {
+      // حذف المنتج بالكامل
+      await deleteDoc(productRef);
+    } else {
+      // إعادة حساب الكمية الإجمالية
+      const newQuantity = updatedColors.reduce(
         (t, c) => t + c.sizes.reduce((s, x) => s + Number(x.qty || 0), 0),
         0
-      )
-    });
-  }
+      );
 
-  setShowDeletePopup(false);
-  setDeleteTarget(null);
-  setDeleteForm([]);
+      // تحديث المنتج
+      await updateDoc(productRef, {
+        colors: updatedColors,
+        quantity: newQuantity
+      });
+    }
+
+    // تنظيف الواجهة
+    setShowDeletePopup(false);
+    setDeleteTarget(null);
+    setDeleteForm([]);
+
+    // اختياري: إظهار ملخص للمستخدم
+    alert(`✅ تم حذف ${deletedTotalQty} قطعة (قيمة تقريبية: ${deletedTotalValue} كقيمة شراء).`);
+
+  } catch (err) {
+    console.error("خطأ أثناء عملية الحذف الجزئي:", err);
+    alert("حدث خطأ أثناء حذف العناصر، حاول مرة أخرى.");
+  }
 };
 
 
