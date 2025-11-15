@@ -22,7 +22,6 @@ export default function Profit() {
   const [showPopup, setShowPopup] = useState(false);
   const [withdrawPerson, setWithdrawPerson] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
-  const [withdrawNote, setWithdrawNote] = useState("");
   const [showPayPopup, setShowPayPopup] = useState(false);
   const [payAmount, setPayAmount] = useState("");
   const [payPerson, setPayPerson] = useState("");
@@ -30,8 +29,8 @@ export default function Profit() {
   const [isHidden, setIsHidden] = useState(true);
   const [showAddCashPopup, setShowAddCashPopup] = useState(false);
   const [addCashAmount, setAddCashAmount] = useState("");
-  const [addCashNote, setAddCashNote] = useState("");
-  const [lastResetTimestamp, setLastResetTimestamp] = useState(null); // لتسجيل آخر تصفير
+  const [showNotes, setShowNotes] = useState(""); // ملاحظات عملية السحب أو إضافة الخزنة
+  const [lastResetTimestamp, setLastResetTimestamp] = useState(null); // لتصفير الأرباح والسحوبات
 
   // تحويل الأرقام العربية إلى إنجليزية
   const arabicToEnglishNumbers = (str) => {
@@ -80,7 +79,7 @@ export default function Profit() {
       const savedHiddenState = localStorage.getItem('hideFinance');
       if (savedHiddenState !== null) setIsHidden(savedHiddenState === 'true');
       const savedReset = localStorage.getItem('lastResetTimestamp');
-      if (savedReset) setLastResetTimestamp(new Date(Number(savedReset)));
+      if (savedReset) setLastResetTimestamp(new Date(savedReset));
     }
   }, []);
 
@@ -113,15 +112,15 @@ export default function Profit() {
 
   useEffect(() => { fetchData(); }, [shop]);
 
-  // دالة لتصفير الأرباح والسحوبات بعد وقت معين
-  const handleResetBalances = () => {
+  // تصفير الأرباح والسحوبات (ماعدا الخزنة)
+  const handleReset = () => {
+    const now = new Date();
+    setLastResetTimestamp(now);
+    localStorage.setItem('lastResetTimestamp', now.toISOString());
     setProfit(0);
     setMostafaBalance(0);
     setMidoBalance(0);
     setDoubleMBalance(0);
-    const now = new Date();
-    setLastResetTimestamp(now);
-    if (typeof window !== 'undefined') localStorage.setItem('lastResetTimestamp', now.getTime());
   };
 
   useEffect(() => {
@@ -132,21 +131,25 @@ export default function Profit() {
 
     const filteredDaily = dailyProfitData.filter(d => {
       const dDate = parseDate(d.date) || parseDate(d.createdAt);
-      return dDate && dDate >= from && dDate <= to;
+      if (!dDate) return false;
+      if (lastResetTimestamp && dDate >= lastResetTimestamp) return false; // العمليات بعد التصفير تظهر صفر
+      return dDate >= from && dDate <= to;
     });
 
     const filteredReports = reports.filter(r => {
       const rDate = parseDate(r.date) || parseDate(r.createdAt);
-      return rDate && rDate >= from && rDate <= to;
+      if (!rDate) return false;
+      if (lastResetTimestamp && rDate >= lastResetTimestamp) return false;
+      return rDate >= from && rDate <= to;
     });
 
     const filteredWithdraws = withdraws.filter(w => {
       const wDate = parseDate(w.date) || parseDate(w.createdAt);
       if (!wDate) return true;
+      if (lastResetTimestamp && wDate >= lastResetTimestamp) return false;
       return wDate >= from && wDate <= to;
     });
 
-    // الخزنة
     const totalMasrofat = filteredDaily.reduce((sum, d) => sum + (d.totalMasrofat || 0), 0);
     const totalCash = filteredDaily.reduce((sum, d) => sum + (d.totalSales || 0), 0);
     let remainingCash = totalCash - totalMasrofat;
@@ -157,29 +160,18 @@ export default function Profit() {
     });
     setCashTotal(remainingCash);
 
-    // الأرباح والسحوبات بعد التصفير
-    let remainingProfit = 0;
+    let remainingProfit = filteredReports.reduce((sum, r) => {
+      if (!r.cart || !Array.isArray(r.cart)) return sum;
+      return sum + r.cart.reduce((s, item) => s + ((item.sellPrice || 0) - (item.buyPrice || 0)) * (item.quantity || 0), 0);
+    }, 0);
+
     let mostafaSum = 0, midoSum = 0, doubleMSum = 0;
-
-    filteredReports.forEach(r => {
-      const rDate = parseDate(r.date) || parseDate(r.createdAt);
-      const include = !lastResetTimestamp || rDate < lastResetTimestamp;
-      if (r.cart && Array.isArray(r.cart)) {
-        const sum = r.cart.reduce((s, item) => s + ((item.sellPrice || 0) - (item.buyPrice || 0)) * (item.quantity || 0), 0);
-        remainingProfit += include ? sum : 0; // قبل التصفير فقط
-      }
-    });
-
     filteredWithdraws.forEach(w => {
-      const wDate = parseDate(w.date) || parseDate(w.createdAt);
-      const include = !lastResetTimestamp || wDate < lastResetTimestamp;
       const remaining = (w.amount || 0) - (w.paid || 0);
-      if (include) {
-        remainingProfit -= remaining;
-        if (w.person === "مصطفى") mostafaSum += remaining;
-        if (w.person === "ميدو") midoSum += remaining;
-        if (w.person === "دبل M") doubleMSum += remaining;
-      }
+      remainingProfit -= remaining;
+      if (w.person === "مصطفى") mostafaSum += remaining;
+      if (w.person === "ميدو") midoSum += remaining;
+      if (w.person === "دبل M") doubleMSum += remaining;
     });
 
     const returnedProfit = filteredDaily.reduce((sum, d) => sum + (d.returnedProfit || 0), 0);
@@ -203,21 +195,42 @@ export default function Profit() {
       shop,
       person: withdrawPerson,
       amount,
-      note: withdrawNote || "",
       date: newDate,
       createdAt: Timestamp.now(),
-      paid: 0
+      paid: 0,
+      notes: showNotes
     });
 
     setWithdraws(prev => [
       ...prev,
-      { id: docRef.id, person: withdrawPerson, amount, note: withdrawNote || "", date: newDate, createdAt: Timestamp.now(), paid: 0 },
+      { id: docRef.id, person: withdrawPerson, amount, date: newDate, createdAt: Timestamp.now(), paid: 0, notes: showNotes },
     ]);
 
     setWithdrawPerson("");
     setWithdrawAmount("");
-    setWithdrawNote("");
+    setShowNotes("");
     setShowPopup(false);
+  };
+
+  const handleAddCash = async () => {
+    const amount = Number(addCashAmount);
+    if (!amount || amount <= 0) return alert("ادخل مبلغ صالح");
+
+    const newDate = formatDate(new Date());
+    await addDoc(collection(db, "dailyProfit"), {
+      shop,
+      totalSales: amount,
+      totalMasrofat: 0,
+      returnedProfit: 0,
+      date: newDate,
+      createdAt: Timestamp.now(),
+      notes: showNotes
+    });
+
+    setAddCashAmount("");
+    setShowNotes("");
+    setShowAddCashPopup(false);
+    fetchData();
   };
 
   const handleDeleteWithdraw = async (id) => {
@@ -254,27 +267,6 @@ export default function Profit() {
     setShowPayPopup(false);
   };
 
-  const handleAddCash = async () => {
-    const amount = Number(addCashAmount);
-    if (!amount || amount <= 0) return alert("ادخل مبلغ صالح");
-
-    const newDate = formatDate(new Date());
-    await addDoc(collection(db, "dailyProfit"), {
-      shop,
-      totalSales: amount,
-      totalMasrofat: 0,
-      returnedProfit: 0,
-      note: addCashNote || "",
-      date: newDate,
-      createdAt: Timestamp.now(),
-    });
-
-    setAddCashAmount("");
-    setAddCashNote("");
-    setShowAddCashPopup(false);
-    fetchData();
-  };
-
   return (
     <div className={styles.profit}>
       <SideBar />
@@ -293,7 +285,8 @@ export default function Profit() {
         <button onClick={toggleHidden} className={styles.withdrawBtn} style={{ marginTop: '15px' }}>
           {isHidden ? "👁️ إظهار الأرقام" : "🙈 إخفاء الأرقام"}
         </button>
-        <button onClick={handleResetBalances} className={styles.withdrawBtn} style={{ marginLeft: '10px', marginTop:'15px' }}>
+
+        <button onClick={handleReset} className={styles.withdrawBtn} style={{ marginTop: '15px', marginLeft: '10px' }}>
           تصفير الأرباح والسحوبات
         </button>
 
@@ -328,18 +321,22 @@ export default function Profit() {
               </tr>
             </thead>
             <tbody>
-              {withdraws.map(w => (
-                <tr key={w.id}>
-                  <td>{w.person}</td>
-                  <td>{isHidden ? "*****" : w.amount}</td>
-                  <td>{isHidden ? "*****" : (w.paid || 0)}</td>
-                  <td>{isHidden ? "*****" : (w.amount - (w.paid || 0))}</td>
-                  <td>{formatDate(parseDate(w.date) || parseDate(w.createdAt))}</td>
-                  <td>{w.note || "—"}</td>
-                  <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.delBtn} onClick={() => handleDeleteWithdraw(w.id)}>حذف</button>}</td>
-                  <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.payBtn} onClick={() => handleOpenPay(w)}>سداد</button>}</td>
-                </tr>
-              ))}
+              {withdraws.map(w => {
+                const wDate = parseDate(w.date) || parseDate(w.createdAt);
+                if (lastResetTimestamp && wDate >= lastResetTimestamp) return null;
+                return (
+                  <tr key={w.id}>
+                    <td>{w.person}</td>
+                    <td>{isHidden ? "*****" : w.amount}</td>
+                    <td>{isHidden ? "*****" : (w.paid || 0)}</td>
+                    <td>{isHidden ? "*****" : (w.amount - (w.paid || 0))}</td>
+                    <td>{formatDate(wDate)}</td>
+                    <td>{w.notes || "—"}</td>
+                    <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.delBtn} onClick={() => handleDeleteWithdraw(w.id)}>حذف</button>}</td>
+                    <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.payBtn} onClick={() => handleOpenPay(w)}>سداد</button>}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -355,7 +352,7 @@ export default function Profit() {
                 <option value="دبل M">دبل M</option>
               </select>
               <input type="number" placeholder="المبلغ" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} />
-              <input type="text" placeholder="ملاحظات" value={withdrawNote} onChange={e => setWithdrawNote(e.target.value)} />
+              <input type="text" placeholder="ملاحظات" value={showNotes} onChange={e => setShowNotes(e.target.value)} />
               <div className={styles.popupActions}>
                 <button onClick={handleWithdraw}>تأكيد</button>
                 <button onClick={() => setShowPopup(false)}>إلغاء</button>
@@ -383,7 +380,7 @@ export default function Profit() {
             <div className={styles.popupContent}>
               <h3>إضافة مبلغ للخزنة</h3>
               <input type="number" placeholder="المبلغ" value={addCashAmount} onChange={e => setAddCashAmount(e.target.value)} />
-              <input type="text" placeholder="ملاحظات" value={addCashNote} onChange={e => setAddCashNote(e.target.value)} />
+              <input type="text" placeholder="ملاحظات" value={showNotes} onChange={e => setShowNotes(e.target.value)} />
               <div className={styles.popupActions}>
                 <button onClick={handleAddCash}>تأكيد</button>
                 <button onClick={() => setShowAddCashPopup(false)}>إلغاء</button>
