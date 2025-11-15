@@ -139,13 +139,13 @@ export default function Profit() {
   fetchReset();     // جلب آخر تصفير
 }, [shop]);
 
-
 useEffect(() => {
   if (!shop) return;
 
   const from = dateFrom ? new Date(dateFrom + "T00:00:00") : new Date("1970-01-01");
   const to = dateTo ? new Date(dateTo + "T23:59:59") : new Date();
 
+  // فلترة البيانات حسب التواريخ
   const filteredDaily = dailyProfitData.filter(d => {
     const dDate = parseDate(d.date) || parseDate(d.createdAt);
     return dDate && dDate >= from && dDate <= to;
@@ -173,30 +173,33 @@ useEffect(() => {
   setCashTotal(remainingCash);
 
   // 2️⃣ حساب الأرباح بعد التصفير
-  let remainingProfit = filteredReports.reduce((sum, r) => {
+  let remainingProfit = 0;
+  filteredReports.forEach(r => {
     const rDate = parseDate(r.date) || parseDate(r.createdAt);
-    if (resetAt && rDate >= resetAt) return sum; // بعد reset → صفر
-    if (!r.cart || !Array.isArray(r.cart)) return sum;
-    return sum + r.cart.reduce((s, item) => s + ((item.sellPrice || 0) - (item.buyPrice || 0)) * (item.quantity || 0), 0);
-  }, 0);
+    if (resetAt && rDate >= resetAt) return; // تجاهل ما بعد reset
+    if (!r.cart || !Array.isArray(r.cart)) return;
+    const reportProfit = r.cart.reduce((s, item) => s + ((item.sellPrice || 0) - (item.buyPrice || 0)) * (item.quantity || 0), 0);
+    remainingProfit += reportProfit;
+  });
 
   // 3️⃣ حساب أرصدة الأشخاص بعد التصفير
   let mostafaSum = 0, midoSum = 0, doubleMSum = 0;
   filteredWithdraws.forEach(w => {
     const wDate = parseDate(w.date) || parseDate(w.createdAt);
-    if (resetAt && wDate >= resetAt) return; // تجاهل السحوبات بعد reset
     const remaining = (w.amount || 0) - (w.paid || 0);
-    if (w.person === "مصطفى") mostafaSum += remaining;
-    if (w.person === "ميدو") midoSum += remaining;
-    if (w.person === "دبل M") doubleMSum += remaining;
-    remainingProfit -= remaining; // خصم السحوبات قبل reset
+    if (!resetAt || wDate < resetAt) { // فقط قبل reset
+      remainingProfit -= remaining;
+      if (w.person === "مصطفى") mostafaSum += remaining;
+      if (w.person === "ميدو") midoSum += remaining;
+      if (w.person === "دبل M") doubleMSum += remaining;
+    }
   });
 
   // 4️⃣ خصم returnedProfit بنفس المنطق
   const returnedProfit = filteredDaily.reduce((sum, d) => {
     const dDate = parseDate(d.date) || parseDate(d.createdAt);
-    if (resetAt && dDate >= resetAt) return sum; // تجاهل ما بعد reset
-    return sum + (d.returnedProfit || 0);
+    if (!resetAt || dDate < resetAt) return sum + (d.returnedProfit || 0);
+    return sum;
   }, 0);
   remainingProfit -= returnedProfit;
 
@@ -207,7 +210,6 @@ useEffect(() => {
   setDoubleMBalance(doubleMSum);
 
 }, [dateFrom, dateTo, dailyProfitData, reports, withdraws, shop, resetAt]);
-
 
 
 
@@ -276,16 +278,9 @@ const handleResetProfit = async () => {
   // حفظ التصفير محليًا
   localStorage.setItem("resetAt", now.toISOString());
 
-  setResetAt(now);
-
-  // تصفير الواجهة مباشرة
-  setProfit(0);
-  setMostafaBalance(0);
-  setMidoBalance(0);
-  setDoubleMBalance(0);
-
-  setIsResetActive(true);
+  setResetAt(now); // الـ useEffect رح يتولى تحديث الأرباح والسحوبات تلقائيًا
 };
+
 
 
 
