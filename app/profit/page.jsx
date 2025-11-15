@@ -7,6 +7,7 @@ import { collection, getDocs, query, where, addDoc, Timestamp, deleteDoc, doc, u
 
 export default function Profit() {
   const [shop, setShop] = useState('');
+  const [isResetActive, setIsResetActive] = useState(false);
   const [reports, setReports] = useState([]);
   const [withdraws, setWithdraws] = useState([]);
   const [dailyProfitData, setDailyProfitData] = useState([]);
@@ -162,11 +163,23 @@ export default function Profit() {
     const returnedProfit = filteredDaily.reduce((sum, d) => sum + (d.returnedProfit || 0), 0);
     remainingProfit -= returnedProfit;
 
-    // اذا في تصفير، نعرض القيم المصفرّة
-    setProfit(profitAfterReset !== null ? profitAfterReset : remainingProfit);
-    setMostafaBalance(profitAfterReset !== null ? mostafaAfterReset : mostafaSum);
-    setMidoBalance(profitAfterReset !== null ? midoAfterReset : midoSum);
-    setDoubleMBalance(profitAfterReset !== null ? doubleMAfterReset : doubleMSum);
+    // تحديد إذا كانت العملية ضمن الفترة الحالية (اليوم الحالي)
+const now = new Date();
+const isCurrentPeriod = !dateFrom && !dateTo;
+
+// إذا تم تفعيل التصفير والفترة الحالية، نظهر القيم مصفرّة
+if (isResetActive && isCurrentPeriod) {
+  setProfit(0);
+  setMostafaBalance(0);
+  setMidoBalance(0);
+  setDoubleMBalance(0);
+} else {
+  setProfit(remainingProfit);
+  setMostafaBalance(mostafaSum);
+  setMidoBalance(midoSum);
+  setDoubleMBalance(doubleMSum);
+}
+
 
   }, [dateFrom, dateTo, dailyProfitData, reports, withdraws, shop, profitAfterReset, mostafaAfterReset, midoAfterReset, doubleMAfterReset]);
 
@@ -220,11 +233,9 @@ export default function Profit() {
   };
 
   const handleResetProfit = () => {
-    setProfitAfterReset(0);
-    setMostafaAfterReset(0);
-    setMidoAfterReset(0);
-    setDoubleMAfterReset(0);
-  };
+  setIsResetActive(true);
+};
+
 
   const handleDeleteWithdraw = async (id) => {
     if (!id) return;
