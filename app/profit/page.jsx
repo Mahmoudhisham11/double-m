@@ -224,7 +224,7 @@ export default function Profit() {
       totalSales: amount,
       totalMasrofat: 0,
       returnedProfit: 0,
-      date: new Date().toLocaleDateString("ar-EG"),
+      date: new Date().toLocaleDateString("en-GB"),
       createdAt: Timestamp.now(),
     });
 
