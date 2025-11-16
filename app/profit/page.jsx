@@ -153,36 +153,52 @@ export default function Profit() {
     const isUsingDateFilter = Boolean(dateFrom || dateTo);
     const effectiveFrom = isUsingDateFilter ? from : (resetAt ? resetAt : from);
 
-    // فلترة البيانات حسب التواريخ (مع مراعاة effectiveFrom)
-    // فلترة البيانات حسب التواريخ فقط بدون أي علاقة بالتصفير
-  const filteredDaily = dailyProfitData.filter(d => {
-    const dDate = parseDate(d.date) || parseDate(d.createdAt);
-    return dDate && dDate >= from && dDate <= to;
-  });
+// يستخدم في حساب الخزنة فقط (لا يتأثر بالتصفير)
+const dailyForCash = dailyProfitData.filter(d => {
+  const dDate = parseDate(d.date) || parseDate(d.createdAt);
+  return dDate && dDate >= from && dDate <= to;
+});
 
-  const filteredReports = reports.filter(r => {
-    const rDate = parseDate(r.date) || parseDate(r.createdAt);
-    return rDate && rDate >= from && rDate <= to;
-  });
+// يستخدم في حساب الأرباح والسحوبات فقط (يتأثر بالتصفير)
+const filteredDaily = dailyProfitData.filter(d => {
+  const dDate = parseDate(d.date) || parseDate(d.createdAt);
+  return dDate && dDate >= effectiveFrom && dDate <= to;
+});
 
-  const filteredWithdraws = withdraws.filter(w => {
-    const wDate = parseDate(w.date) || parseDate(w.createdAt);
-    return wDate && wDate >= from && wDate <= to;
-  });  withdraws.filter(w => {
-      const wDate = parseDate(w.date) || parseDate(w.createdAt);
-      if (!wDate) return false; // لا نحتسب عناصر بلا تاريخ هنا
-      return wDate >= effectiveFrom && wDate <= to;
+
+
+    const filteredReports = reports.filter(r => {
+      const rDate = parseDate(r.date) || parseDate(r.createdAt);
+      return rDate && rDate >= effectiveFrom && rDate <= to;
     });
+
+    // للخزنة فقط — لا يتأثر بالتصفير
+const withdrawsForCash = withdraws.filter(w => {
+  const wDate = parseDate(w.date) || parseDate(w.createdAt);
+  return wDate >= from && wDate <= to;
+});
+
+// للربح — يتأثر بالتصفير
+const filteredWithdraws = withdraws.filter(w => {
+  const wDate = parseDate(w.date) || parseDate(w.createdAt);
+  return wDate >= effectiveFrom && wDate <= to;
+});
+
 
     // 1️⃣ حساب الخزنة دائمًا (لا تتأثر بالتصفير)
-    const totalMasrofat = filteredDaily.reduce((sum, d) => sum + (Number(d.totalMasrofat) || 0), 0);
-    const totalCash = filteredDaily.reduce((sum, d) => sum + (Number(d.totalSales) || 0), 0);
-    let remainingCash = totalCash - totalMasrofat;
-    filteredWithdraws.forEach(w => {
-      const remaining = (Number(w.amount) || 0) - (Number(w.paid) || 0);
-      remainingCash -= remaining;
-    });
-    setCashTotal(remainingCash);
+    // خزنة — بدون أي علاقة بالتصفير
+const totalMasrofat = dailyForCash.reduce((sum, d) => sum + (d.totalMasrofat || 0), 0);
+const totalCash = dailyForCash.reduce((sum, d) => sum + (d.totalSales || 0), 0);
+
+let remainingCash = totalCash - totalMasrofat;
+
+withdrawsForCash.forEach(w => {
+  const remaining = (w.amount || 0) - (w.paid || 0);
+  remainingCash -= remaining;
+});
+
+setCashTotal(remainingCash);
+
 
     // 2️⃣ حساب الأرباح (من بعد effectiveFrom)
     let remainingProfit = 0;
