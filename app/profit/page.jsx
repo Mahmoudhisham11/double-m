@@ -154,17 +154,21 @@ export default function Profit() {
     const effectiveFrom = isUsingDateFilter ? from : (resetAt ? resetAt : from);
 
     // فلترة البيانات حسب التواريخ (مع مراعاة effectiveFrom)
-    const filteredDaily = dailyProfitData.filter(d => {
-      const dDate = parseDate(d.date) || parseDate(d.createdAt);
-      return dDate && dDate >= effectiveFrom && dDate <= to;
-    });
+    // فلترة البيانات حسب التواريخ فقط بدون أي علاقة بالتصفير
+  const filteredDaily = dailyProfitData.filter(d => {
+    const dDate = parseDate(d.date) || parseDate(d.createdAt);
+    return dDate && dDate >= from && dDate <= to;
+  });
 
-    const filteredReports = reports.filter(r => {
-      const rDate = parseDate(r.date) || parseDate(r.createdAt);
-      return rDate && rDate >= effectiveFrom && rDate <= to;
-    });
+  const filteredReports = reports.filter(r => {
+    const rDate = parseDate(r.date) || parseDate(r.createdAt);
+    return rDate && rDate >= from && rDate <= to;
+  });
 
-    const filteredWithdraws = withdraws.filter(w => {
+  const filteredWithdraws = withdraws.filter(w => {
+    const wDate = parseDate(w.date) || parseDate(w.createdAt);
+    return wDate && wDate >= from && wDate <= to;
+  });  withdraws.filter(w => {
       const wDate = parseDate(w.date) || parseDate(w.createdAt);
       if (!wDate) return false; // لا نحتسب عناصر بلا تاريخ هنا
       return wDate >= effectiveFrom && wDate <= to;
