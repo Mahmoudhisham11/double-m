@@ -236,32 +236,39 @@ setCashTotal(remainingCash);
   }, [dateFrom, dateTo, dailyProfitData, reports, withdraws, shop, resetAt]);
 
   const handleWithdraw = async () => {
-    if (!withdrawPerson || !withdrawAmount) return alert("اختر الشخص واكتب المبلغ");
-    const amount = Number(withdrawAmount);
-    if (amount <= 0) return alert("المبلغ غير صالح");
-    if (amount > cashTotal) return alert("رصيد الخزنة غير كافي");
+  if (!withdrawPerson || !withdrawAmount) return alert("اختر الشخص واكتب المبلغ");
+  const amount = Number(withdrawAmount);
+  if (amount <= 0) return alert("المبلغ غير صالح");
+  if (amount > cashTotal) return alert("رصيد الخزنة غير كافي");
 
-    const newDate = formatDate(new Date());
-    const docRef = await addDoc(collection(db, "withdraws"), {
-      shop,
-      person: withdrawPerson,
-      amount,
-      notes: withdrawNotes,
-      date: newDate,
-      createdAt: Timestamp.now(),
-      paid: 0
-    });
+  const newDate = formatDate(new Date());
+  const docRef = await addDoc(collection(db, "withdraws"), {
+    shop,
+    person: withdrawPerson,
+    amount,
+    notes: withdrawNotes,
+    date: newDate,
+    createdAt: Timestamp.now(),
+    paid: 0
+  });
 
-    setWithdraws(prev => [
-      ...prev,
-      { id: docRef.id, person: withdrawPerson, amount, notes: withdrawNotes, date: newDate, createdAt: Timestamp.now(), paid: 0 },
-    ]);
+  // تحديث withdraws
+  setWithdraws(prev => [
+    ...prev,
+    { id: docRef.id, person: withdrawPerson, amount, notes: withdrawNotes, date: newDate, createdAt: Timestamp.now(), paid: 0 },
+  ]);
 
-    setWithdrawPerson("");
-    setWithdrawAmount("");
-    setWithdrawNotes("");
-    setShowPopup(false);
-  };
+  // ✅ تحديث الربح ورصيد الشخص فورًا
+  setProfit(prev => prev - amount);
+  if (withdrawPerson === "مصطفى") setMostafaBalance(prev => prev + amount);
+  if (withdrawPerson === "ميدو") setMidoBalance(prev => prev + amount);
+  if (withdrawPerson === "دبل M") setDoubleMBalance(prev => prev + amount);
+
+  setWithdrawPerson("");
+  setWithdrawAmount("");
+  setWithdrawNotes("");
+  setShowPopup(false);
+};
 
   const handleAddCash = async () => {
     const amount = Number(addCashAmount);
