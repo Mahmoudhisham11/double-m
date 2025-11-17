@@ -52,6 +52,14 @@ function SideBar({openSideBar, setOpenSideBar}) {
                     <span><TbReportMoney/></span>
                     <span>البضاعة</span>
                 </Link>
+                <Link href={'/dailyReports'} className={styles.actionLinks}>
+                    <span><TbReportMoney/></span>
+                    <span>جرد يومي</span>
+                </Link>
+                <Link href={'/debts'} className={styles.actionLinks}>
+                    <span><TbReportMoney/></span>
+                    <span>البضاعة</span>
+                </Link>
                 <Link href={'/reports'} className={styles.actionLinks}>
                     <span><TbReportSearch/></span>
                     <span>المرتجعات</span>

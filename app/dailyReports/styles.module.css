@@ -1,0 +1,19 @@
+.DailyReports {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    justify-content: start;
+    align-items: start;
+}
+.content {
+    width: 100%;
+}
+.searchBox {
+    width: 100%;
+}
+.tableContainer {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
