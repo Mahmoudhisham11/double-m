@@ -1419,6 +1419,9 @@ const handleReturnProduct = async (item, invoiceId) => {
           <button onClick={(e) => { e.stopPropagation(); handleDeleteCartItem(item.id); }}>
             <FaRegTrashAlt />
           </button>
+          <button onClick={(e) => {openEditPricePopup(item)}}>
+            ت
+          </button>
           <div className={styles.text}>
             <h4>{item.name} {item.color ? ` - ${item.color}` : ""} {item.size ? ` - ${item.size}` : ""}</h4>
             <p>{item.total} EGP</p>
