@@ -677,16 +677,14 @@ useEffect(() => {
   return () => clearTimeout(timer);
 }, [searchCode, products, shop])
 useEffect(() => {
-  const maxDiscounts = products.map(item => {
-    const alreadyDiscounted = item.sellPrice - item.finalPrice;
-    return item.sellPrice - alreadyDiscounted;
-  });
-
-  const totalMaxDiscount = maxDiscounts.reduce((acc, val) => acc + val, 0);
+  const totalMaxDiscount = products.reduce((acc, item) => {
+    const maxDiscountPerItem = item.sellPrice - item.finalPrice;
+    return acc + maxDiscountPerItem;
+  }, 0);
 
   setTotalMaxDiscount(totalMaxDiscount); // نخزن الحد الكلي للخصم في state
 }, [products]);
-;
+
 const handleApplyDiscount = () => {
   const numeric = Number(discountInput) || 0;
 
@@ -703,6 +701,7 @@ const handleApplyDiscount = () => {
   setAppliedDiscount(numeric);
   setShowDiscountPopup(false);
 };
+
 
 
 
@@ -1398,6 +1397,7 @@ const handleReturnProduct = async (item, invoiceId) => {
               <div style={{ marginBottom: 8 }}>
                 {/* <div><strong>📈 ربح الفاتورة:</strong> {profit} جنيه</div> */}
                 <div><strong>🔖 الخصم:</strong> {appliedDiscount} جنيه {appliedDiscount > 0 ? `(ملاحظة: ${discountNotes || '-'})` : null}</div>
+                <div><strong>🔖 الحد الاقصى للخصم:</strong> {appliedDiscount} جنيه {totalMaxDiscount > 0 ? `(ملاحظة: ${discountNotes || '-'})` : null}</div>
               </div>
 
               <strong>{finalTotal} EGP</strong>
