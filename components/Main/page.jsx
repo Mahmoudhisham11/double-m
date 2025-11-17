@@ -33,6 +33,9 @@ function Main() {
   const [searchClient, setSearchClient] = useState("");
   const [masrofat, setMasrofat] = useState([])
   const [totalMaxDiscount, setTotalMaxDiscount] = useState(0)
+  const [editPricePopup, setEditPricePopup] = useState(false);
+const [productToEdit, setProductToEdit] = useState(null);
+const [newPriceInput, setNewPriceInput] = useState(0);
 
   // NEW: discount popup & values
   const [showDiscountPopup, setShowDiscountPopup] = useState(false);
@@ -722,19 +725,18 @@ const handleApplyDiscount = () => {
   const totalAmount = subtotal;
 
   // 1️⃣ state للـ popup
-const [editPricePopup, setEditPricePopup] = useState(false);
-const [productToEdit, setProductToEdit] = useState(null);
-const [newPriceInput, setNewPriceInput] = useState(0);
+
 
 // 2️⃣ فتح الـ popup عند الضغط على المنتج
 const openEditPricePopup = (item) => {
   setProductToEdit(item);
   setNewPriceInput(item.sellPrice);
-  setEditPricePopup(true);
+  setTimeout(() => setEditPricePopup(true), 0); // يضمن ظهور popup بعد تحديث state
 };
 
+
 // 3️⃣ حفظ السعر الجديد
-const handleSaveNewPrice = async () => {
+const handleSaveNewPrice = () => {
   if (!productToEdit) return;
   const numericPrice = Number(newPriceInput);
   if (numericPrice <= 0) {
@@ -742,13 +744,12 @@ const handleSaveNewPrice = async () => {
     return;
   }
 
-  // تحديث السعر في الـ cart
-  setCart(prevCart =>
-    prevCart.map(it => it.id === productToEdit.id ? { ...it, sellPrice: numericPrice, total: numericPrice * it.quantity } : it)
-  );
-
-  // إعادة حساب الخصم أو الإجمالي لو مرتبط
-  // setAppliedDiscount(0); // لو عايز تفريغ الخصم أو إعادة حسابه
+  // تحديث السعر في cart
+  setCart(prev => prev.map(item =>
+    item.id === productToEdit.id
+      ? { ...item, sellPrice: numericPrice, total: numericPrice * item.quantity }
+      : item
+  ));
 
   setEditPricePopup(false);
   setProductToEdit(null);
@@ -1412,16 +1413,21 @@ const handleReturnProduct = async (item, invoiceId) => {
     <div
       className={styles.ordersContainer}
       key={item.id}
-      onClick={() => openEditPricePopup(item)} // 👈 هنا الفتح
     >
       <div className={styles.orderInfo}>
         <div className={styles.content}>
           <button onClick={(e) => { e.stopPropagation(); handleDeleteCartItem(item.id); }}>
             <FaRegTrashAlt />
           </button>
-          <button onClick={(e) => {openEditPricePopup(item)}}>
-            ت
-          </button>
+          <button
+  onClick={(e) => { 
+    e.stopPropagation(); // يمنع propagation
+    openEditPricePopup(item); 
+  }}
+>
+   ت
+</button>
+
           <div className={styles.text}>
             <h4>{item.name} {item.color ? ` - ${item.color}` : ""} {item.size ? ` - ${item.size}` : ""}</h4>
             <p>{item.total} EGP</p>
@@ -1559,7 +1565,7 @@ const handleReturnProduct = async (item, invoiceId) => {
               </>
             )}
 
-            {editPricePopup && productToEdit && (
+{editPricePopup && productToEdit && (
   <div className={styles.popupOverlay}>
     <div className={styles.popupContent}>
       <h3>تعديل سعر {productToEdit.name}</h3>
