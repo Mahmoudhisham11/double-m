@@ -408,121 +408,99 @@
     };
 
     // Handle return
-    const handleReturnProduct = async (item, invoiceId) => {
-    try {
-      const today = new Date();
-      const formattedDate = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+  const handleReturnProduct = async (item, invoiceId) => {
+  try {
+    const today = new Date();
+    const formattedDate = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
 
-      const dailySalesQ = query(collection(db, "dailySales"), where("shop", "==", item.shop));
-      const dailySalesSnap = await getDocs(dailySalesQ);
-      let totalSales = 0;
-      dailySalesSnap.forEach(d => { const data = d.data(); totalSales += Number(data.total || 0); });
+    const dailySalesQ = query(collection(db, "dailySales"), where("shop", "==", item.shop));
+    const dailySalesSnap = await getDocs(dailySalesQ);
+    let totalSales = 0;
+    dailySalesSnap.forEach(d => { const data = d.data(); totalSales += Number(data.total || 0); });
 
-      const itemTotalPrice = Number(item.sellPrice || 0) * Number(item.quantity || 0);
-      const itemProfit = (Number(item.sellPrice || 0) - Number(item.buyPrice || 0)) * Number(item.quantity || 0);
+    const itemTotalPrice = Number(item.sellPrice || 0) * Number(item.quantity || 0);
+    const itemProfit = (Number(item.sellPrice || 0) - Number(item.buyPrice || 0)) * Number(item.quantity || 0);
 
-      if (totalSales < itemTotalPrice) {
-        alert("⚠️ لا يمكن إرجاع هذا المنتج لأن إجمالي المبيعات أقل من سعره!");
-        return;
-      }
-      const invoiceRef = doc(db, "reports", invoiceId);
-      const invoiceSnap = await getDoc(invoiceRef);
+    if (totalSales < itemTotalPrice) {
+      alert("⚠️ لا يمكن إرجاع هذا المنتج لأن إجمالي المبيعات أقل من سعره!");
+      return;
+    }
 
-      if (!invoiceSnap.exists()) {
-        alert("⚠️ لم يتم العثور على الفاتورة!");
-        return;
-      }
+    const invoiceRef = doc(db, "reports", invoiceId);
+    const invoiceSnap = await getDoc(invoiceRef);
 
-      const invoiceData = invoiceSnap.data();
-      const invoiceDate = invoiceData.date;
+    if (!invoiceSnap.exists()) {
+      alert("⚠️ لم يتم العثور على الفاتورة!");
+      return;
+    }
 
-      const updatedCart = invoiceData.cart.filter(
-        (p) =>
-          !(
-            p.code === item.code &&
-            p.quantity === item.quantity &&
-            p.sellPrice === item.sellPrice &&
-            p.name === item.name &&
-            (p.color || "") === (item.color || "") &&
-            (p.size || "") === (item.size || "")
-          )
-      );
+    const invoiceData = invoiceSnap.data();
+    const invoiceDate = invoiceData.date;
 
-      if (invoiceDate === formattedDate) {
-        if (updatedCart.length > 0) {
-          const newTotal = updatedCart.reduce((sum, p) => sum + (p.sellPrice * p.quantity || 0), 0);
-          const newProfit = updatedCart.reduce((sum, p) => sum + ((p.sellPrice - (p.buyPrice || 0)) * (p.quantity || 1)), 0);
+    // حذف المنتج المرتجع من الفاتورة
+    const updatedCart = invoiceData.cart.filter(
+      (p) =>
+        !(
+          p.code === item.code &&
+          p.quantity === item.quantity &&
+          p.sellPrice === item.sellPrice &&
+          p.name === item.name &&
+          (p.color || "") === (item.color || "") &&
+          (p.size || "") === (item.size || "")
+        )
+    );
 
-          await updateDoc(invoiceRef, { cart: updatedCart, total: newTotal, profit: newProfit });
+    if (updatedCart.length > 0) {
+      const newTotal = updatedCart.reduce((sum, p) => sum + (p.sellPrice * p.quantity || 0), 0);
+      const newProfit = updatedCart.reduce((sum, p) => sum + ((p.sellPrice - (p.buyPrice || 0)) * (p.quantity || 1)), 0);
 
-          const empQ = query(collection(db, "employeesReports"), where("date", "==", invoiceData.date), where("shop", "==", invoiceData.shop));
-          const empSnap = await getDocs(empQ);
-          empSnap.forEach(async (d) => {
-            await updateDoc(d.ref, { cart: updatedCart, total: newTotal, profit: newProfit });
-          });
+      await updateDoc(invoiceRef, { cart: updatedCart, total: newTotal, profit: newProfit });
 
-          alert(`✅ تم إرجاع ${item.name} بنجاح وحُذف من الفاتورة!`);
-        } else {
-          // الفاتورة أصبحت فارغة => نحذفها
-          await deleteDoc(invoiceRef);
-
-          const empQ = query(collection(db, "employeesReports"), where("date", "==", invoiceData.date), where("shop", "==", invoiceData.shop));
-          const empSnap = await getDocs(empQ);
-          empSnap.forEach(async (d) => {
-            await deleteDoc(d.ref);
-          });
-
-          alert(`✅ تم إرجاع ${item.name} وحُذفت الفاتورة لأنها أصبحت فارغة.`);
-        }
-
-        // أضف سجل المصروف لليوم (كما قبل)
-        await addDoc(collection(db, "masrofat"), {
-          name: item.name,
-          masrof: itemTotalPrice,
-          profit: itemProfit,
-          reason: "فاتورة مرتجع",
-          date: formattedDate,
-          shop: item.shop || shop,
-        });
-      }
-      else {
-        await addDoc(collection(db, "masrofat"), {
-          name: item.name,
-          masrof: itemTotalPrice, 
-          profit: itemProfit,   
-          reason: "فاتورة مرتجع",
-          date: formattedDate,
-          shop: item.shop || shop,
-        });
-
-        await addDoc(collection(db, "employeesReports"), {
-          shop: item.shop || shop,
-          date: formattedDate,
-          cart: [],
-          total: 0,
-          profit: -itemProfit,
-          note: `مرتجع من فاتورة ${invoiceId} (أصلاً بتاريخ ${invoiceDate})`,
-          createdAt: Timestamp.now()
-        });
-
-        // إعلام المستخدم
-        alert(`✅ تم تسجيل مرتجع ${item.name} بتاريخ ${formattedDate} بدون تغيير الفاتورة الأصلية (ستظهر التأثيرات على الربح في يوم المرتجع).`);
-      }
-
-      // ✅ إضافة الجزء الخاص بالمرتجع في collection "returns"
-      await addDoc(collection(db, "returns"), {
-        originalInvoiceId: invoiceId,
-        originalDate: invoiceDate || formattedDate,
-        returnDate: formattedDate,
-        item: item,
-        shop: item.shop || shop,
+      const empQ = query(collection(db, "employeesReports"), where("date", "==", invoiceData.date), where("shop", "==", invoiceData.shop));
+      const empSnap = await getDocs(empQ);
+      empSnap.forEach(async (d) => {
+        await updateDoc(d.ref, { cart: updatedCart, total: newTotal, profit: newProfit });
       });
 
-    } catch (error) {
-      console.error("خطأ أثناء الإرجاع:", error);
-      alert("❌ حدث خطأ أثناء إرجاع المنتج");
+      alert(`✅ تم إرجاع ${item.name} بنجاح وحُذف من الفاتورة!`);
+    } else {
+      // الفاتورة أصبحت فارغة => نحذفها بالكامل
+      await deleteDoc(invoiceRef);
+
+      const empQ = query(collection(db, "employeesReports"), where("date", "==", invoiceData.date), where("shop", "==", invoiceData.shop));
+      const empSnap = await getDocs(empQ);
+      empSnap.forEach(async (d) => {
+        await deleteDoc(d.ref);
+      });
+
+      alert(`✅ تم إرجاع ${item.name} وحُذفت الفاتورة لأنها أصبحت فارغة.`);
     }
-  };
+
+    // إضافة سجل المصروف لليوم
+    await addDoc(collection(db, "masrofat"), {
+      name: item.name,
+      masrof: itemTotalPrice,
+      profit: itemProfit,
+      reason: "فاتورة مرتجع",
+      date: formattedDate,
+      shop: item.shop || shop,
+    });
+
+    // إضافة سجل المرتجع في collection "returns"
+    await addDoc(collection(db, "returns"), {
+      originalInvoiceId: invoiceId,
+      originalDate: invoiceDate || formattedDate,
+      returnDate: formattedDate,
+      item: item,
+      shop: item.shop || shop,
+    });
+
+  } catch (error) {
+    console.error("خطأ أثناء الإرجاع:", error);
+    alert("❌ حدث خطأ أثناء إرجاع المنتج");
+  }
+};
+
 
     if (loading) return <p>🔄 جاري التحقق...</p>;
     if (!auth) return null;

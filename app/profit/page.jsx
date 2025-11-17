@@ -408,57 +408,70 @@ export default function Profit() {
                   <th>سداد</th>
                 </tr>
               </thead>
-                      <tbody>
-                       {withdraws.map(w => (
-                         <tr key={w.id}>
-                            <td>{w.person}</td>
-                            <td>{isHidden ? "*****" : w.amount}</td>
-                            <td>{isHidden ? "*****" : (w.paid || 0)}</td>
-                            <td>{isHidden ? "*****" : (w.amount - (w.paid || 0))}</td>
-                            <td>{formatDate(parseDate(w.date) || parseDate(w.createdAt))}</td>
-                            <td>{w.notes || ""}</td>
-                            <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.delBtn} onClick={() => handleDeleteWithdraw(w.id)}>حذف</button>}</td>
-                             <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.payBtn} onClick={() => handleOpenPay(w)}>سداد</button>}</td> </tr> ))}
-                              </tbody>
-                              </table> 
-                               </div>
+                <tbody>
+                  {withdraws.map(w => (
+                    <tr key={w.id}>
+                      <td>{w.person}</td>
+                      <td>{isHidden ? "*****" : w.amount}</td>
+                      <td>{isHidden ? "*****" : (w.paid || 0)}</td>
+                      <td>{isHidden ? "*****" : (w.amount - (w.paid || 0))}</td>
+                      <td>{formatDate(parseDate(w.date) || parseDate(w.createdAt))}</td>
+                      <td>{w.notes || ""}</td>
+                      <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.delBtn} onClick={() => handleDeleteWithdraw(w.id)}>حذف</button>}</td>
+                        <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.payBtn} onClick={() => handleOpenPay(w)}>سداد</button>}</td> </tr> ))}
+                        </tbody>
+                        </table> 
+                          </div>
       </div>
 
 
-      {showPopup && (
+      {showPopup && ( 
         <div className={styles.popup}>
-          <h3>سحب</h3>
-          <select value={withdrawPerson} onChange={e => setWithdrawPerson(e.target.value)}>
-            <option value="">اختر الشخص</option>
-            <option value="مصطفى">مصطفى</option>
-            <option value="ميدو">ميدو</option>
-            <option value="دبل M">دبل M</option>
-          </select>
-          <input type="number" placeholder="المبلغ" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} />
-          <textarea placeholder="ملاحظات" value={withdrawNotes} onChange={e => setWithdrawNotes(e.target.value)} />
-          <button onClick={handleWithdraw}>تأكيد السحب</button>
-          <button onClick={() => setShowPopup(false)}>إلغاء</button>
-        </div>
-      )}
+           <div className={styles.popupContent}>
+             <h3>عملية سحب</h3>
+              <select value={withdrawPerson} 
+              onChange={e => setWithdrawPerson(e.target.value)}>
+                 <option value="">اختر الشخص</option> 
+                 <option value="مصطفى">مصطفى</option>
+                  <option value="ميدو">ميدو</option>
+                   <option value="دبل M">دبل M</option>
+                    </select> 
+                    <input type="number" placeholder="المبلغ" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} /> 
+                    <input type="text" placeholder="ملاحظات" value={withdrawNotes} onChange={e => setWithdrawNotes(e.target.value)} /> 
+                    <div className={styles.popupActions}> 
+                      <button onClick={handleWithdraw}>تأكيد</button>
+                       <button onClick={() => setShowPopup(false)}>إلغاء</button> 
+                       </div>
+                        </div>
+                         </div> 
+                        )}
 
-      {showAddCashPopup && (
-        <div className={styles.popup}>
-          <h3>إضافة للخزنة</h3>
-          <input type="number" placeholder="المبلغ" value={addCashAmount} onChange={e => setAddCashAmount(e.target.value)} />
-          <textarea placeholder="ملاحظات" value={addCashNotes} onChange={e => setAddCashNotes(e.target.value)} />
-          <button onClick={handleAddCash}>إضافة</button>
-          <button onClick={() => setShowAddCashPopup(false)}>إلغاء</button>
-        </div>
-      )}
+      {showAddCashPopup && ( 
+        <div className={styles.popup}> 
+        <div className={styles.popupContent}> 
+          <h3>إضافة مبلغ للخزنة</h3>
+           <input type="number" placeholder="المبلغ" value={addCashAmount} onChange={e => setAddCashAmount(e.target.value)} /> 
+           <input type="text" placeholder="ملاحظات" value={addCashNotes} onChange={e => setAddCashNotes(e.target.value)} /> 
+           <div className={styles.popupActions}> <button onClick={handleAddCash}>تأكيد</button> 
+           <button onClick={() => setShowAddCashPopup(false)}>إلغاء</button>
+            </div> 
+            </div> 
+            </div> 
+          )}
 
-      {showPayPopup && (
-        <div className={styles.popup}>
-          <h3>سداد لـ {payPerson}</h3>
-          <input type="number" placeholder="المبلغ" value={payAmount} onChange={e => setPayAmount(e.target.value)} />
-          <button onClick={handlePay}>تأكيد السداد</button>
-          <button onClick={() => setShowPayPopup(false)}>إلغاء</button>
-        </div>
-      )}
+      {showPayPopup && ( 
+        <div className={styles.popup}> 
+        <div className={styles.popupContent}>
+           <h3>سداد مبلغ</h3> <p>الشخص: {payPerson}</p>
+            <input type="number" placeholder="المبلغ" value={payAmount}
+             onChange={e => setPayAmount(e.target.value)} /> 
+             <div className={styles.popupActions}> 
+        <button onClick={handlePay}>تأكيد</button>
+         <button onClick={() => setShowPayPopup(false)}>إلغاء</button> 
+         </div> 
+         </div>
+          </div> 
+        )}
     </div>
   );
 }
