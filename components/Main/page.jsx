@@ -721,6 +721,39 @@ const handleApplyDiscount = () => {
 
   const totalAmount = subtotal;
 
+  // 1️⃣ state للـ popup
+const [editPricePopup, setEditPricePopup] = useState(false);
+const [productToEdit, setProductToEdit] = useState(null);
+const [newPriceInput, setNewPriceInput] = useState(0);
+
+// 2️⃣ فتح الـ popup عند الضغط على المنتج
+const openEditPricePopup = (item) => {
+  setProductToEdit(item);
+  setNewPriceInput(item.sellPrice);
+  setEditPricePopup(true);
+};
+
+// 3️⃣ حفظ السعر الجديد
+const handleSaveNewPrice = async () => {
+  if (!productToEdit) return;
+  const numericPrice = Number(newPriceInput);
+  if (numericPrice <= 0) {
+    alert("السعر يجب أن يكون أكبر من صفر");
+    return;
+  }
+
+  // تحديث السعر في الـ cart
+  setCart(prevCart =>
+    prevCart.map(it => it.id === productToEdit.id ? { ...it, sellPrice: numericPrice, total: numericPrice * it.quantity } : it)
+  );
+
+  // إعادة حساب الخصم أو الإجمالي لو مرتبط
+  // setAppliedDiscount(0); // لو عايز تفريغ الخصم أو إعادة حسابه
+
+  setEditPricePopup(false);
+  setProductToEdit(null);
+};
+
   // -------------------------
   // handleSaveReport: now we trust that stock was decremented when adding; still we verify availability as safety
   // -------------------------
@@ -1375,25 +1408,32 @@ const handleReturnProduct = async (item, invoiceId) => {
           </div>
           <hr />
           <div className={styles.orderBox}>
-            {cart.map((item) => (
-              <div className={styles.ordersContainer} key={item.id}>
-                <div className={styles.orderInfo}>
-                  <div className={styles.content}>
-                    <button onClick={() => handleDeleteCartItem(item.id)}><FaRegTrashAlt /></button>
-                    <div className={styles.text}>
-                      <h4>{item.name} {item.color ? ` - ${item.color}` : ""} {item.size ? ` - ${item.size}` : ""}</h4>
-                      <p>{item.total} EGP</p>
-                    </div>
-                  </div>
-                  <div className={styles.qtyInput}>
-                    <button onClick={() => handleQtyChange(item, -1)}>-</button>
-                    <input type="text" value={item.quantity} readOnly />
-                    <button onClick={() => handleQtyChange(item, 1)}>+</button>
-                  </div>
-                </div>
-              </div>
-            ))}
+  {cart.map((item) => (
+    <div
+      className={styles.ordersContainer}
+      key={item.id}
+      onClick={() => openEditPricePopup(item)} // 👈 هنا الفتح
+    >
+      <div className={styles.orderInfo}>
+        <div className={styles.content}>
+          <button onClick={(e) => { e.stopPropagation(); handleDeleteCartItem(item.id); }}>
+            <FaRegTrashAlt />
+          </button>
+          <div className={styles.text}>
+            <h4>{item.name} {item.color ? ` - ${item.color}` : ""} {item.size ? ` - ${item.size}` : ""}</h4>
+            <p>{item.total} EGP</p>
           </div>
+        </div>
+        <div className={styles.qtyInput}>
+          <button onClick={(e) => { e.stopPropagation(); handleQtyChange(item, -1); }}>-</button>
+          <input type="text" value={item.quantity} readOnly />
+          <button onClick={(e) => { e.stopPropagation(); handleQtyChange(item, 1); }}>+</button>
+        </div>
+      </div>
+    </div>
+  ))}
+</div>
+
           <div className={styles.totalContainer}>
             <hr />
             <div className={styles.totalBox}>
@@ -1515,6 +1555,22 @@ const handleReturnProduct = async (item, invoiceId) => {
                 </div>
               </>
             )}
+
+            {editPricePopup && productToEdit && (
+  <div className={styles.popupOverlay}>
+    <div className={styles.popupContent}>
+      <h3>تعديل سعر {productToEdit.name}</h3>
+      <input
+        type="number"
+        value={newPriceInput}
+        onChange={(e) => setNewPriceInput(e.target.value)}
+      />
+      <button onClick={handleSaveNewPrice}>حفظ السعر</button>
+      <button onClick={() => setEditPricePopup(false)}>إلغاء</button>
+    </div>
+  </div>
+)}
+
 
             {/* المقاسات الخاصة باللون المحدد */}
             <div>
