@@ -29,6 +29,7 @@ function Products() {
   const [auth, setAuth] = useState(false);
   const [loading, setLoading] = useState(true);
   const [active, setActive] = useState(false);
+  const [finalPrice, setFinalPrice] = useState("");
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [searchCode, setSearchCode] = useState("");
@@ -236,6 +237,7 @@ setTotalProducts(computeTotalProducts(filtered));
       name: form.name || "",
       buyPrice: Number(form.buyPrice) || 0,
       sellPrice: Number(form.sellPrice) || 0,
+      finalPrice: Number(finalPrice) || 0,
       quantity: totalQty,
       colors: colors || [],
       sizes: [],
@@ -327,6 +329,7 @@ setTotalProducts(computeTotalProducts(filtered));
         name: form.name || "",
         buyPrice: Number(form.buyPrice) || 0,
         sellPrice: Number(form.sellPrice) || 0,
+        finalPrice: Number(finalPrice) || 0,
         quantity: totalQty,
         colors: colors || [],
         sizes: [],
@@ -700,6 +703,7 @@ const confirmDeleteSelected = async () => {
                         <th>الاسم</th>
                         <th>سعر الشراء</th>
                         <th>سعر البيع</th>
+                        <th>السعر النهائي</th>
                         <th>الكمية</th>
                         <th>الألوان (الكمية)</th>
                         <th>تفصيل المقاسات</th>
@@ -730,6 +734,7 @@ const confirmDeleteSelected = async () => {
                             <td>{product.name || "-"}</td>
                             <td>{product.buyPrice || 0} EGP</td>
                             <td>{product.sellPrice || 0} EGP</td>
+                            <td>{p.finalPrice} EGP</td>
                             <td>{totalQ || product.quantity || 0}</td>
                             <td>{colorsQtyStr || "-"}</td>
                             <td style={{ whiteSpace: 'pre-wrap', maxWidth: 300 }}>{sizesDetail || "-"}</td>
@@ -781,6 +786,18 @@ const confirmDeleteSelected = async () => {
                       onChange={(e) => setForm({ ...form, sellPrice: e.target.value })}
                     />
                   </div>
+                  <div className={styles.inputBox}>
+                    <div className="inputContainer">
+                      <label>السعر النهائي</label>
+                      <input
+                        type="number"
+                        placeholder="ادخل السعر النهائي"
+                        value={finalPrice}
+                        onChange={(e) => setFinalPrice(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
                 </div>
 
                 <div className={styles.inputBox}>

@@ -97,7 +97,7 @@ export default function DailyReports() {
 
         {/* عرض الإجمالي */}
         <div className={styles.totals}>
-          <p>إجمالي الكمية: {totalQty}</p>
+          <h2>إجمالي الكمية: {totalQty}</h2>
         </div>
 
         {/* جدول عرض النتائج */}

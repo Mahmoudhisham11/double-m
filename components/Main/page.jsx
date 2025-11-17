@@ -677,18 +677,27 @@ useEffect(() => {
 }, [searchCode, products, shop]);
 
   const handleApplyDiscount = () => {
-    const numeric = Number(discountInput) || 0;
-    if (numeric < 0) {
-      alert('الخصم لا يمكن أن يكون قيمة سالبة');
-      return;
-    }
-    if (numeric > subtotal) {
-      const ok = window.confirm('الخصم أكبر من إجمالي الفاتورة، هل تريد تطبيقه؟');
-      if (!ok) return;
-    }
-    setAppliedDiscount(Math.min(numeric, subtotal));
-    setShowDiscountPopup(false);
-  };
+  const numeric = Number(discountInput) || 0;
+
+  if (numeric < 0) {
+    alert('الخصم لا يمكن أن يكون قيمة سالبة');
+    return;
+  }
+
+  // نحسب الحد الأقصى للخصم لكل منتج
+  const totalMaxDiscount = products.reduce((acc, item) => {
+    return acc + (item.price - item.finalPrice);
+  }, 0);
+
+  if (numeric > totalMaxDiscount) {
+    alert(`الخصم أكبر من الحد المسموح به. أقصى خصم ممكن للفاتورة هو ${totalMaxDiscount}`);
+    return;
+  }
+
+  setAppliedDiscount(numeric);
+  setShowDiscountPopup(false);
+};
+
 
   const handleClearDiscount = () => {
     setAppliedDiscount(0);
