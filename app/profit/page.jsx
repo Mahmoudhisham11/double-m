@@ -394,7 +394,36 @@ export default function Profit() {
         >
           مسح كل المرتجعات
         </button>
+        <div className={styles.tableContainer}>
+           <table>
+             <thead>
+               <tr>
+                  <th>الاسم</th>
+                  <th>المبلغ</th>
+                  <th>المدفوع</th>
+                  <th>المتبقي</th>
+                  <th>التاريخ</th>
+                  <th>ملاحظات</th>
+                  <th>حذف</th>
+                  <th>سداد</th>
+                </tr>
+              </thead>
+                      <tbody>
+                       {withdraws.map(w => (
+                         <tr key={w.id}>
+                            <td>{w.person}</td>
+                            <td>{isHidden ? "*****" : w.amount}</td>
+                            <td>{isHidden ? "*****" : (w.paid || 0)}</td>
+                            <td>{isHidden ? "*****" : (w.amount - (w.paid || 0))}</td>
+                            <td>{formatDate(parseDate(w.date) || parseDate(w.createdAt))}</td>
+                            <td>{w.notes || ""}</td>
+                            <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.delBtn} onClick={() => handleDeleteWithdraw(w.id)}>حذف</button>}</td>
+                             <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.payBtn} onClick={() => handleOpenPay(w)}>سداد</button>}</td> </tr> ))}
+                              </tbody>
+                              </table> 
+                               </div>
       </div>
+
 
       {showPopup && (
         <div className={styles.popup}>
