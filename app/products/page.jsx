@@ -155,14 +155,21 @@ setTotalProducts(totalQty);
       setTotalBuy(totalBuyAmount);
       setTotalSell(totalSellAmount);
 
-      if (searchCode.trim()) {
-        const filtered = data.filter((p) =>
-          p.name?.toString().toLowerCase().includes(searchCode.trim().toLowerCase())
-        );
-        setFilteredProducts(filtered);
-      } else {
-        setFilteredProducts(data);
-      }
+      let filtered;
+
+if (searchCode.trim()) {
+  filtered = data.filter((p) =>
+    p.name?.toString().toLowerCase().includes(searchCode.trim().toLowerCase())
+  );
+} else {
+  filtered = data;
+}
+
+setFilteredProducts(filtered);
+
+// تحديث إجمالي الكمية حسب نتائج البحث
+setTotalProducts(computeTotalProducts(filtered));
+
     });
 
     return () => unsubscribe();
@@ -181,6 +188,25 @@ setTotalProducts(totalQty);
     const maxCode = Math.max(...codes);
     return maxCode + 1;
   };
+
+  const computeTotalProducts = (productsArr) => {
+  let total = 0;
+
+  productsArr.forEach((product) => {
+    let qty = 0;
+
+    if (product.colors && product.colors.length) {
+      qty = computeTotalQtyFromColors(product.colors); // ← دي الدالة اللي عندك
+    } else {
+      qty = Number(product.quantity || 0);
+    }
+
+    total += qty;
+  });
+
+  return total;
+};
+
 
   const computeTotalQtyFromColors = (colorsArr) => {
     let total = 0;
