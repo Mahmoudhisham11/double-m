@@ -831,7 +831,7 @@ const handleCloseDay = async () => {
 
     // 1️⃣ استعلام عن مبيعات اليوم لنفس المتجر
     const salesQuery = query(
-      collection(db, "dailySales"), 
+      collection(db, "dailySales"),
       where("shop", "==", shop)
     );
     const salesSnapshot = await getDocs(salesQuery);
@@ -843,7 +843,7 @@ const handleCloseDay = async () => {
 
     // 2️⃣ استعلام عن كل المصروفات لنفس المتجر
     const masrofatQuery = query(
-      collection(db, "masrofat"), 
+      collection(db, "masrofat"),
       where("shop", "==", shop)
     );
     const masrofatSnapshot = await getDocs(masrofatQuery);
@@ -856,7 +856,6 @@ const handleCloseDay = async () => {
     });
 
     // 4️⃣ حساب إجمالي المصروفات الخاصة باليوم والمصروفات من المرتجعات
-    
     let totalMasrofat = 0;
     let returnedProfit = 0;
     masrofatSnapshot.forEach(docSnap => {
@@ -869,13 +868,12 @@ const handleCloseDay = async () => {
         }
       }
     });
-    
-    let netMasrof = 0
-    masrofatSnapshot.forEach(docSnap => {
-      const data = docSnap.data()
-      netMasrof += data.masrof
-    })
 
+    let netMasrof = 0;
+    masrofatSnapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      netMasrof += data.masrof;
+    });
 
     // 6️⃣ إنشاء Batch لحفظ التقارير وحذف المبيعات
     const batch = writeBatch(db);
@@ -900,6 +898,17 @@ const handleCloseDay = async () => {
     const profitRef = doc(collection(db, "dailyProfit"));
     batch.set(profitRef, profitData);
 
+    // ⭐⭐⭐ الإضافة الجديدة: نسخ كل المصروفات قبل حذفها ⭐⭐⭐
+    masrofatSnapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      const historyRef = doc(collection(db, "masrofatHistory"));
+      batch.set(historyRef, {
+        ...data,
+        closedAt: todayStr,
+        closedAtTimestamp: Timestamp.now()
+      });
+    });
+
     // 7️⃣ حذف كل المصروفات الخاصة باليوم
     masrofatSnapshot.forEach(docSnap => {
       const data = docSnap.data();
@@ -917,6 +926,7 @@ const handleCloseDay = async () => {
     alert("حدث خطأ أثناء تقفيل اليوم");
   }
 };
+
 
 
   const handleDeleteInvoice = async () => {

@@ -222,11 +222,6 @@ const filteredCustomers = customers.filter((c) => {
   }
 });
 
-
-
-
-
-
   // ===== Open payment modal
   const openPaymentModal = (customer) => {
     setPaymentCustomer(customer);
