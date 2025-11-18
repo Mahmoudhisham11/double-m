@@ -213,9 +213,15 @@ const filteredCustomers = customers.filter((c) => {
   // حولها لصيغة YYYY-MM-DD عشان متوافقة مع input type="date"
   const dateStr = `${year}-${month}-${day}`;
 
-  // ابحث بالـ searchCode
-  return dateStr.includes(searchCode); // searchCode من input type="date"
+  // لو فيه تاريخ محدد في البحث
+  if (searchCode) {
+    return dateStr.includes(searchCode); // ابحث بالـ date فقط
+  } else {
+    // بدون تاريخ، اعرض بس العملاء اللي عندهم دين > 0
+    return Number(c.debt || 0) > 0;
+  }
 });
+
 
 
 
