@@ -40,6 +40,27 @@ function Debts() {
 });
 
   const [customers, setCustomers] = useState([]);
+  const getTreasuryBalance = async () => {
+    const q = query(collection(db, "dailyProfit"), where("shop", "==", shop));
+    const snapshot = await getDocs(q);
+
+    let totalSales = 0;
+    let totalMasrofat = 0;
+    let totalSaddad = 0;
+
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      if (data.type === "سداد") {
+        totalSaddad += Number(data.totalSales || 0);
+      } else {
+        totalSales += Number(data.totalSales || 0);
+      }
+      totalMasrofat += Number(data.totalMasrofat || 0);
+    });
+
+    const balance = totalSales - totalMasrofat - totalSaddad;
+    return balance;
+  };
 
   // ===== payment modal state
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -151,6 +172,8 @@ function Debts() {
     paymentSource: "درج"
   });
   setActive(false);
+  setDetailsPayments([]);
+  setDetailsAslDebt(0);
 };
 
 
@@ -226,6 +249,16 @@ const handleConfirmPayment = async () => {
   setProcessingPayment(true);
 
   try {
+    // ===== فحص رصيد الخزنة =====
+    if (paymentSource === "خزنة") {
+      const treasuryBalance = await getTreasuryBalance(); // استدعاء دالة حساب الرصيد
+      if (paid > treasuryBalance) {
+        alert(`رصيد الخزنة الحالي (${treasuryBalance} EGP) أقل من المبلغ المطلوب سداده (${paid} EGP).`);
+        setProcessingPayment(false);
+        return;
+      }
+    }
+
     const debtRef = doc(db, "debts", paymentCustomer.id);
     const debtSnap = await getDoc(debtRef);
 
@@ -246,9 +279,15 @@ const handleConfirmPayment = async () => {
 
     const remainingDebt = previousDebt - paid;
 
-    // ===== تحديث أو حذف الدين فقط =====
+    // ===== تحديث الدين في Firestore =====
     await updateDoc(debtRef, { debt: remainingDebt });
 
+    // ===== تحديث الدين في state المحلي مباشرة =====
+    setCustomers(prev =>
+      prev.map(c =>
+        c.id === paymentCustomer.id ? { ...c, debt: remainingDebt } : c
+      )
+    );
 
     // ===== تسجيل السداد في debtsPayments =====
     await addDoc(collection(db, "debtsPayments"), {
@@ -264,18 +303,15 @@ const handleConfirmPayment = async () => {
 
     // ===== إذا مصدر السداد خزنة =====
     if (paymentSource === "خزنة") {
-  const now = new Date();
-  await addDoc(collection(db, "dailyProfit"), {
-    createdAt: now,
-    date: `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`, // صيغة "DD/MM/YYYY"
-    shop: shop,
-    totalSales: paid,
-    type: 'سداد'
-  });
-}
-
-
-    // لو من الدرج → لا نفعل شيء إضافي
+      const now = new Date();
+      await addDoc(collection(db, "dailyProfit"), {
+        createdAt: now,
+        date: `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`,
+        shop: shop,
+        totalSales: paid,
+        type: 'سداد'
+      });
+    }
 
     alert("✅ تم تسجيل السداد بنجاح");
     closePaymentModal();
@@ -288,11 +324,17 @@ const handleConfirmPayment = async () => {
 
 
 
+
+
   // ===== Open details popup
-  const openDetailsPopup = async (customer) => {
+const openDetailsPopup = async (customer) => {
   if (!customer) return;
 
-  // حفظ اصل الدين
+  // مسح بيانات السداد القديمة
+  setDetailsPayments([]);
+  setDetailsAslDebt(0);
+
+  // حفظ اصل الدين للعميل الجديد
   setDetailsAslDebt(customer.aslDebt || customer.debt || 0);
 
   const q = query(
@@ -305,6 +347,7 @@ const handleConfirmPayment = async () => {
   setDetailsPayments(data);
   setShowDetailsPopup(true);
 };
+
 
 
   const closeDetailsPopup = () => {
