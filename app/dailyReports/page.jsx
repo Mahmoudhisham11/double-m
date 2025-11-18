@@ -107,8 +107,6 @@ export default function DailyReports() {
               <tr>
                 <th>الكود</th>
                 <th>الاسم</th>
-                <th>سعر الشراء</th>
-                <th>سعر البيع</th>
                 <th>الكمية</th>
               </tr>
             </thead>
@@ -122,8 +120,6 @@ export default function DailyReports() {
                   <tr key={p.id}>
                     <td>{p.code}</td>
                     <td>{p.name}</td>
-                    <td>{p.buyPrice} EGP</td>
-                    <td>{p.sellPrice} EGP</td>
                     <td>{qty}</td>
                   </tr>
                 );

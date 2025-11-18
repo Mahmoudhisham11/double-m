@@ -34,7 +34,10 @@ function Debts() {
     debtType: "",
     debtDirection: "",
     dateInput: "",
-  });
+    paymentAmount: "",   // مبلغ السداد مباشرة
+    paymentSource: "درج" // درج أو خزنة
+});
+
   const [customers, setCustomers] = useState([]);
 
   // ===== payment modal state
@@ -90,32 +93,64 @@ function Debts() {
   }, [shop]);
 
   const handleAddProduct = async () => {
-    if (!form.name || !form.phone) {
-      alert("يرجى ملء كل الحقول");
-      return;
-    }
+  if (!form.name || !form.phone || !form.debt) {
+    alert("يرجى ملء كل الحقول");
+    return;
+  }
 
-    await addDoc(collection(db, "debts"), {
+  const debtAmount = Number(form.debt);
+  const paymentAmountNum = Number(form.paymentAmount || 0); // مبلغ السداد
+  const remainingDebt = debtAmount - paymentAmountNum;
+
+  const newDebtDoc = await addDoc(collection(db, "debts"), {
+    name: form.name,
+    phone: form.phone,
+    debt: remainingDebt > 0 ? remainingDebt : 0,
+    debtType: form.debtType,
+    debtDirection: form.debtDirection,
+    dateInput: form.dateInput,
+    date: new Date(),
+    shop: shop,
+  });
+
+  // ===== تسجيل السداد إذا موجود
+  if (paymentAmountNum > 0) {
+    await addDoc(collection(db, "debtsPayments"), {
       name: form.name,
       phone: form.phone,
-      debt: Number(form.debt),
-      debtType: form.debtType,
-      debtDirection: form.debtDirection,
-      dateInput: form.dateInput,
+      paidAmount: paymentAmountNum,
+      previousDebt: debtAmount,
+      remainingDebt: remainingDebt > 0 ? remainingDebt : 0,
       date: new Date(),
       shop: shop,
+      source: form.paymentSource || "درج",
     });
 
-    setForm({
-      name: "",
-      phone: "",
-      debt: "",
-      debtType: "",
-      debtDirection: "",
-      dateInput: "",
-    });
-    setActive(false);
-  };
+    if (form.paymentSource === "خزنة") {
+      const now = new Date();
+      await addDoc(collection(db, "dailyProfit"), {
+        createdAt: now,
+        date: `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`,
+        shop: shop,
+        totalSales: paymentAmountNum,
+        type: 'سداد'
+      });
+    }
+  }
+
+  setForm({
+    name: "",
+    phone: "",
+    debt: "",
+    debtType: "",
+    debtDirection: "",
+    dateInput: "",
+    paymentAmount: "",
+    paymentSource: "درج"
+  });
+  setActive(false);
+};
+
 
   const handleDelete = async (id) => {
     await deleteDoc(doc(db, "debts", id));
@@ -142,63 +177,81 @@ function Debts() {
   };
 
   // ===== Confirm payment
-  const handleConfirmPayment = async () => {
-    if (!paymentCustomer) return;
-    const paid = Number(paymentAmount);
-    if (!paid || paid <= 0 || isNaN(paid)) {
-      alert("الرجاء إدخال مبلغ سداد صالح أكبر من صفر");
+const handleConfirmPayment = async () => {
+  if (!paymentCustomer) return;
+  const paid = Number(paymentAmount);
+  if (!paid || paid <= 0 || isNaN(paid)) {
+    alert("الرجاء إدخال مبلغ سداد صالح أكبر من صفر");
+    return;
+  }
+
+  setProcessingPayment(true);
+
+  try {
+    const debtRef = doc(db, "debts", paymentCustomer.id);
+    const debtSnap = await getDoc(debtRef);
+
+    if (!debtSnap.exists()) {
+      alert("لم يتم العثور على بيانات الدين — ربما حُذف بالفعل.");
+      setProcessingPayment(false);
+      closePaymentModal();
       return;
     }
 
-    setProcessingPayment(true);
-
-    try {
-      const debtRef = doc(db, "debts", paymentCustomer.id);
-      const debtSnap = await getDoc(debtRef);
-
-      if (!debtSnap.exists()) {
-        alert("لم يتم العثور على بيانات الدين — ربما حُذف بالفعل.");
-        setProcessingPayment(false);
-        closePaymentModal();
-        return;
-      }
-
-      const debtData = debtSnap.data();
-      const previousDebt = Number(debtData.debt || 0);
-      if (paid > previousDebt) {
-        alert(`المبلغ أكبر من الدين الحالي (${previousDebt} EGP).`);
-        setProcessingPayment(false);
-        return;
-      }
-
-      const remainingDebt = previousDebt - paid;
-
-      if (remainingDebt <= 0) {
-        await deleteDoc(debtRef);
-      } else {
-        await updateDoc(debtRef, { debt: remainingDebt });
-      }
-
-      // سجل السداد مع مصدر الدفع
-      await addDoc(collection(db, "debtsPayments"), {
-        name: debtData.name || paymentCustomer.name || "",
-        phone: debtData.phone || paymentCustomer.phone || "",
-        paidAmount: paid,
-        previousDebt: previousDebt,
-        remainingDebt: remainingDebt,
-        date: new Date(),
-        shop: shop,
-        source: paymentSource, // درج أو خزنة
-      });
-
-      alert("✅ تم تسجيل السداد بنجاح");
-      closePaymentModal();
-    } catch (err) {
-      console.error("خطأ أثناء معالجة السداد:", err);
-      alert("❌ حدث خطأ أثناء معالجة السداد، حاول مرة أخرى");
+    const debtData = debtSnap.data();
+    const previousDebt = Number(debtData.debt || 0);
+    if (paid > previousDebt) {
+      alert(`المبلغ أكبر من الدين الحالي (${previousDebt} EGP).`);
       setProcessingPayment(false);
+      return;
     }
-  };
+
+    const remainingDebt = previousDebt - paid;
+
+    // ===== تحديث أو حذف الدين فقط =====
+    if (remainingDebt <= 0) {
+      await deleteDoc(debtRef);
+    } else {
+      await updateDoc(debtRef, { debt: remainingDebt });
+    }
+
+    // ===== تسجيل السداد في debtsPayments =====
+    await addDoc(collection(db, "debtsPayments"), {
+      name: debtData.name || paymentCustomer.name || "",
+      phone: debtData.phone || paymentCustomer.phone || "",
+      paidAmount: paid,
+      previousDebt: previousDebt,
+      remainingDebt: remainingDebt,
+      date: new Date(),
+      shop: shop,
+      source: paymentSource, // درج أو خزنة
+    });
+
+    // ===== إذا مصدر السداد خزنة =====
+    if (paymentSource === "خزنة") {
+  const now = new Date();
+  await addDoc(collection(db, "dailyProfit"), {
+    createdAt: now,
+    date: `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`, // صيغة "DD/MM/YYYY"
+    shop: shop,
+    totalSales: paid,
+    type: 'سداد'
+  });
+}
+
+
+    // لو من الدرج → لا نفعل شيء إضافي
+
+    alert("✅ تم تسجيل السداد بنجاح");
+    closePaymentModal();
+  } catch (err) {
+    console.error("خطأ أثناء معالجة السداد:", err);
+    alert("❌ حدث خطأ أثناء معالجة السداد، حاول مرة أخرى");
+    setProcessingPayment(false);
+  }
+};
+
+
 
   // ===== Open details popup
   const openDetailsPopup = async (customer) => {
@@ -358,8 +411,31 @@ function Debts() {
               >
                 <option value="ليك">ليك فلوس</option>
                 <option value="بضاعة اجل">بضاعة اجل</option>
-                <option value="بضاعة اجل">بضاعة كاش</option>
+                <option value="بضاعة كاش">بضاعة كاش</option>
               </select>
+            </div>
+          </div>
+          <div className={styles.inputBox}>
+            <div className="inputContainer">
+              <input
+   type="number"
+   placeholder="مبلغ السداد"
+   value={form.paymentAmount || ""}
+   onChange={(e) => setForm({ ...form, paymentAmount: e.target.value })}
+ />
+
+            </div>
+
+            <div className="inputContainer">
+              <label><GiMoneyStack /></label>
+              <select
+   value={form.paymentSource || "درج"}
+   onChange={(e) => setForm({ ...form, paymentSource: e.target.value })}
+ >
+   <option value="خزنة">خزنة</option>
+   <option value="درج">درج</option>
+</select>
+
             </div>
           </div>
 

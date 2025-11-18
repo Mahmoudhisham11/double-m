@@ -263,22 +263,59 @@ setTotalProducts(computeTotalProducts(filtered));
     setColors([]);
   };
 
-  const handleDelete = (product) => {
+const handleDelete = async (product) => {
+
+  const hasColors = product.colors && product.colors.length > 0;
+
+  // ✅ لو المنتج ملوش ألوان → نحذفه فورًا + نخزّنه في deletedProducts
+  if (!hasColors) {
+    try {
+      // الكمية اللي تتحسب في التقارير
+      const deletedQty = Number(product.quantity || 1);
+
+      // 1. تخزين المنتج في deletedProducts
+      await addDoc(collection(db, "deletedProducts"), {
+        name: product.name,
+        buyPrice: Number(product.buyPrice) || 0,
+        sellPrice: Number(product.sellPrice) || 0,
+        deletedTotalQty: deletedQty,     // 👈 أهم سطر
+        shop: product.shop || shop,      // لو بتستخدم shop
+        code: product.code || "",
+        type: product.type || "",
+        deletedAt: new Date(),
+      });
+
+      // 2. حذف المنتج من lacosteProducts
+      await deleteDoc(doc(db, "lacosteProducts", product.id));
+
+      alert("تم حذف المنتج وحفظه في السجل بنجاح");
+
+    } catch (e) {
+      console.error("Error deleting product:", e);
+      alert("حدث خطأ أثناء الحذف");
+    }
+
+    return; // مهم جدًا
+  }
+
+  // 🔽 الكود القديم لفتح الـ popup لو المنتج ليه ألوان/مقاسات
   setDeleteTarget(product);
 
-  // تجهيز فورم الحذف بنفس شكل modal المقاسات
   const formatted = (product.colors || []).map((c) => ({
     color: c.color,
     sizes: (c.sizes || []).map((s) => ({
       size: s.size,
       qty: s.qty,
-      deleteQty: 0, // الكمية اللي المستخدم هيحذفها
+      deleteQty: 0,
     }))
   }));
 
   setDeleteForm(formatted);
   setShowDeletePopup(true);
 };
+
+
+
 
 
   const handleEdit = (product) => {

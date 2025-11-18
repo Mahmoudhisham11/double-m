@@ -21,6 +21,8 @@ export default function Profit() {
   const [deletedTotal, setDeletedTotal] = useState(0);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [isDeletedTotalCleared, setIsDeletedTotalCleared] = useState(false);
+
   const [showPopup, setShowPopup] = useState(false);
   const [withdrawPerson, setWithdrawPerson] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
@@ -116,23 +118,45 @@ export default function Profit() {
   };
 
   const fetchData = async () => {
-    if (!shop) return;
+  if (!shop) return;
 
-    const reportsSnap = await getDocs(query(collection(db, "reports"), where("shop", "==", shop)));
-    setReports(reportsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+  // جلب التقارير
+  const reportsSnap = await getDocs(query(collection(db, "reports"), where("shop", "==", shop)));
+  setReports(reportsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
-    const withdrawsSnap = await getDocs(query(collection(db, "withdraws"), where("shop", "==", shop)));
-    setWithdraws(withdrawsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+  // جلب السحوبات
+  const withdrawsSnap = await getDocs(query(collection(db, "withdraws"), where("shop", "==", shop)));
+  setWithdraws(withdrawsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
-    const dailyProfitSnap = await getDocs(query(collection(db, "dailyProfit"), where("shop", "==", shop)));
-    setDailyProfitData(dailyProfitSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+  // جلب أرباح اليومية
+  const dailyProfitSnap = await getDocs(query(collection(db, "dailyProfit"), where("shop", "==", shop)));
+  setDailyProfitData(dailyProfitSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
-    const deletedSnap = await getDocs(query(collection(db, "deletedProducts"), where("shop", "==", shop)));
-    const deletedArr = deletedSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    setDeletedProducts(deletedArr);
-    const totalDeleted = deletedArr.reduce((sum, p) => sum + ((Number(p.buyPrice) || 0) * (Number(p.deletedTotalQty) || 0)), 0);
-    setDeletedTotal(totalDeleted);
-  };
+  // جلب المنتجات المحذوفة
+  const deletedSnap = await getDocs(query(collection(db, "deletedProducts"), where("shop", "==", shop)));
+  const deletedArr = deletedSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  setDeletedProducts(deletedArr);
+
+  // جلب آخر تاريخ تصفير للمرتجعات
+  const resetLogsSnap = await getDocs(query(collection(db, "deletedResetLogs"), where("shop", "==", shop)));
+  const resetLogs = resetLogsSnap.docs.map(doc => doc.data());
+  const lastReset = resetLogs.length > 0
+    ? resetLogs.reduce((prev, curr) => (prev.resetAt.seconds > curr.resetAt.seconds ? prev : curr))
+    : null;
+  const lastResetDate = lastReset?.resetAt?.toDate ? lastReset.resetAt.toDate() : null;
+
+  // حساب إجمالي المرتجعات بعد آخر تصفير
+  const totalDeleted = deletedArr.reduce((sum, p) => {
+    const deletedDate = p.createdAt?.toDate ? p.createdAt.toDate() : new Date();
+    if (!lastResetDate || deletedDate > lastResetDate) {
+      return sum + ((Number(p.buyPrice) || 0) * (Number(p.deletedTotalQty) || 0));
+    }
+    return sum;
+  }, 0);
+
+  setDeletedTotal(totalDeleted);
+};
+
 
   useEffect(() => {
     if (!shop) return;
@@ -142,81 +166,97 @@ export default function Profit() {
   }, [shop]);
 
   useEffect(() => {
-    if (!shop) return;
+  if (!shop) return;
 
-    const from = dateFrom ? new Date(dateFrom + "T00:00:00") : new Date("1970-01-01");
-    const to = dateTo ? new Date(dateTo + "T23:59:59") : new Date();
+  const from = dateFrom ? new Date(dateFrom + "T00:00:00") : new Date("1970-01-01");
+  const to = dateTo ? new Date(dateTo + "T23:59:59") : new Date();
 
-    const isUsingDateFilter = Boolean(dateFrom || dateTo);
-    const effectiveFrom = isUsingDateFilter ? from : (resetAt ? resetAt : from);
+  const isUsingDateFilter = Boolean(dateFrom || dateTo);
+  const effectiveFrom = isUsingDateFilter ? from : (resetAt ? resetAt : from);
 
-    const dailyForCash = dailyProfitData.filter(d => {
-      const dDate = parseDate(d.date) || parseDate(d.createdAt);
-      return dDate && dDate >= from && dDate <= to;
-    });
+  const dailyForCash = dailyProfitData.filter(d => {
+    const dDate = parseDate(d.date) || parseDate(d.createdAt);
+    return dDate && dDate >= from && dDate <= to;
+  });
 
-    const filteredDaily = dailyProfitData.filter(d => {
-      const dDate = parseDate(d.date) || parseDate(d.createdAt);
-      return dDate && dDate >= effectiveFrom && dDate <= to;
-    });
+  const filteredDaily = dailyProfitData.filter(d => {
+    const dDate = parseDate(d.date) || parseDate(d.createdAt);
+    return dDate && dDate >= effectiveFrom && dDate <= to;
+  });
 
-    const filteredReports = reports.filter(r => {
-      const rDate = parseDate(r.date) || parseDate(r.createdAt);
-      return rDate && rDate >= effectiveFrom && rDate <= to;
-    });
+  const filteredReports = reports.filter(r => {
+    const rDate = parseDate(r.date) || parseDate(r.createdAt);
+    return rDate && rDate >= effectiveFrom && rDate <= to;
+  });
 
-    const withdrawsForCash = withdraws.filter(w => {
-      const wDate = parseDate(w.date) || parseDate(w.createdAt);
-      return wDate >= from && wDate <= to;
-    });
+  const filteredWithdraws = withdraws.filter(w => {
+    const wDate = parseDate(w.date) || parseDate(w.createdAt);
+    return wDate >= effectiveFrom && wDate <= to;
+  });
 
-    const filteredWithdraws = withdraws.filter(w => {
-      const wDate = parseDate(w.date) || parseDate(w.createdAt);
-      return wDate >= effectiveFrom && wDate <= to;
-    });
+  const totalMasrofat = dailyForCash.reduce((sum, d) => sum + (d.totalMasrofat || 0), 0);
+  const totalCash = dailyForCash.reduce((sum, d) => {
+  const sales = Number(d.totalSales || 0);
+  if (d.type === "سداد") {
+    return sum - sales; // خصم بدل إضافة
+  }
+  return sum + sales; // إضافة عادية
+}, 0);
 
-    const totalMasrofat = dailyForCash.reduce((sum, d) => sum + (d.totalMasrofat || 0), 0);
-    const totalCash = dailyForCash.reduce((sum, d) => sum + (d.totalSales || 0), 0);
 
-    let remainingCash = totalCash - totalMasrofat;
+  let remainingCash = totalCash - totalMasrofat;
 
-    withdrawsForCash.forEach(w => {
-      const remaining = (w.amount || 0) - (w.paid || 0);
-      remainingCash -= remaining;
-    });
+  // هنا بعد تعريف filteredWithdraws
+  filteredWithdraws.forEach(w => {
+    const remaining = (Number(w.amount) || 0) - (Number(w.paid) || 0);
 
-    setCashTotal(remainingCash < 0 ? 0 : remainingCash);
+    if (w.person === "الخزنة") {
+      remainingCash += remaining; // أي إضافة للخزنة تزيد الرصيد
+    } else {
+      remainingCash -= remaining; // أي سحب عادي يقلل الرصيد
+    }
+  });
 
-    let remainingProfit = 0;
-    filteredReports.forEach(r => {
-      if (!r.cart || !Array.isArray(r.cart)) return;
-      const reportProfit = r.cart.reduce((s, item) => {
-        const sell = Number(item.sellPrice) || 0;
-        const buy = Number(item.buyPrice) || 0;
-        const qty = Number(item.quantity) || 0;
-        return s + (sell - buy) * qty;
-      }, 0);
-      remainingProfit += reportProfit;
-    });
+  setCashTotal(remainingCash < 0 ? 0 : remainingCash);
 
-    let mostafaSum = 0, midoSum = 0, doubleMSum = 0;
-    filteredWithdraws.forEach(w => {
-      const remaining = (Number(w.amount) || 0) - (Number(w.paid) || 0);
-      remainingProfit -= remaining;
-      if (w.person === "مصطفى") mostafaSum += remaining;
-      if (w.person === "ميدو") midoSum += remaining;
-      if (w.person === "دبل M") doubleMSum += remaining;
-    });
+  // حساب الأرباح
+let remainingProfit = 0;
+filteredReports.forEach(r => {
+  if (!r.cart || !Array.isArray(r.cart)) return;
+  const reportProfit = r.cart.reduce((s, item) => {
+    const sell = Number(item.sellPrice) || 0;
+    const buy = Number(item.buyPrice) || 0;
+    const qty = Number(item.quantity) || 0;
+    return s + (sell - buy) * qty;
+  }, 0);
+  remainingProfit += reportProfit;
+});
 
-    const returnedProfit = filteredDaily.reduce((sum, d) => sum + (Number(d.returnedProfit) || 0), 0);
-    remainingProfit -= returnedProfit;
+let mostafaSum = 0, midoSum = 0, doubleMSum = 0;
+filteredWithdraws.forEach(w => {
+  const remaining = (Number(w.amount) || 0) - (Number(w.paid) || 0);
 
-    setProfit(remainingProfit < 0 ? 0 : remainingProfit);
-    setMostafaBalance(mostafaSum < 0 ? 0 : mostafaSum);
-    setMidoBalance(midoSum < 0 ? 0 : midoSum);
-    setDoubleMBalance(doubleMSum < 0 ? 0 : doubleMSum);
+  if (w.person !== "الخزنة") { 
+    // خصم من الأرباح فقط لو الشخص مش الخزنة
+    remainingProfit -= remaining;
+  }
 
-  }, [dateFrom, dateTo, dailyProfitData, reports, withdraws, shop, resetAt]);
+  if (w.person === "مصطفى") mostafaSum += remaining;
+  if (w.person === "ميدو") midoSum += remaining;
+  if (w.person === "دبل M") doubleMSum += remaining;
+});
+
+
+  const returnedProfit = filteredDaily.reduce((sum, d) => sum + (Number(d.returnedProfit) || 0), 0);
+  remainingProfit -= returnedProfit;
+
+  setProfit(remainingProfit < 0 ? 0 : remainingProfit);
+  setMostafaBalance(mostafaSum < 0 ? 0 : mostafaSum);
+  setMidoBalance(midoSum < 0 ? 0 : midoSum);
+  setDoubleMBalance(doubleMSum < 0 ? 0 : doubleMSum);
+
+}, [dateFrom, dateTo, dailyProfitData, reports, withdraws, shop, resetAt]);
+
 
   const handleWithdraw = async () => {
     if (!withdrawPerson || !withdrawAmount) return alert("اختر الشخص واكتب المبلغ");
@@ -249,27 +289,32 @@ export default function Profit() {
     setShowPopup(false);
   };
 
-  const handleAddCash = async () => {
-    const amount = Number(addCashAmount);
-    if (!amount || amount <= 0) return alert("ادخل مبلغ صالح");
+const handleAddCash = async () => {
+  const amount = Number(addCashAmount);
+  if (!amount || amount <= 0) return alert("ادخل مبلغ صالح");
 
-    const newDate = formatDate(new Date());
-    await addDoc(collection(db, "dailyProfit"), {
-      shop,
-      totalSales: amount,
-      totalMasrofat: 0,
-      returnedProfit: 0,
-      notes: addCashNotes,
-      date: newDate,
-      createdAt: Timestamp.now(),
-    });
+  const newDate = new Date(); // وقت فعلي
 
-    await fetchData();
+  // إضافة المبلغ كعملية في withdraws
+  await addDoc(collection(db, "withdraws"), {
+    shop,
+    person: "الخزنة",      // تقدر تغير الاسم لو تحب
+    amount,
+    paid: 0,
+    notes: addCashNotes,
+    date: formatDate(newDate),
+    createdAt: Timestamp.fromDate(newDate),
+  });
 
-    setAddCashAmount("");
-    setAddCashNotes("");
-    setShowAddCashPopup(false);
-  };
+  // تحديث البيانات فورًا
+  await fetchData();
+
+  setAddCashAmount("");
+  setAddCashNotes("");
+  setShowAddCashPopup(false);
+};
+
+
 
   const handleResetProfit = async () => {
     const confirmReset = confirm("هل أنت متأكد من تصفير الأرباح والأرصدة؟");
@@ -325,29 +370,25 @@ export default function Profit() {
     setShowPayPopup(false);
   };
 
-  const handleClearDeletedProducts = async () => {
-    if (!shop) return alert("لم يتم العثور على المتجر");
+const handleClearDeletedProducts = async () => {
+  if (!shop) return alert("لم يتم العثور على المتجر");
 
-    const sure = confirm("هل أنت متأكد من حذف كل المنتجات المرتجعة؟");
-    if (!sure) return;
+  const sure = confirm("هل أنت متأكد من تصفير إجمالي المنتجات المرتجعة؟");
+  if (!sure) return;
 
-    try {
-      const q = query(collection(db, "deletedProducts"), where("shop", "==", shop));
-      const snap = await getDocs(q);
+  const now = new Date();
 
-      const deletePromises = snap.docs.map(d => deleteDoc(doc(db, "deletedProducts", d.id)));
+  // إضافة سجل التصفير في Firebase
+  await addDoc(collection(db, "deletedResetLogs"), {
+    shop,
+    resetAt: Timestamp.fromDate(now),
+  });
 
-      await Promise.all(deletePromises);
+  setDeletedTotal(0);               // اجعل الرقم صفر في الواجهة
+  setIsDeletedTotalCleared(true);   // علم أن الإجمالي مُصفّر
+};
 
-      setDeletedProducts([]);
-      setDeletedTotal(0);
 
-      alert("تم حذف جميع المنتجات المرتجعة بنجاح ✔");
-    } catch (err) {
-      console.error("خطأ أثناء حذف المرتجعات:", err);
-      alert("حدث خطأ أثناء الحذف");
-    }
-  };
 
   return (
     <div className={styles.profit}>
@@ -409,17 +450,40 @@ export default function Profit() {
                 </tr>
               </thead>
                 <tbody>
-                  {withdraws.map(w => (
-                    <tr key={w.id}>
-                      <td>{w.person}</td>
-                      <td>{isHidden ? "*****" : w.amount}</td>
-                      <td>{isHidden ? "*****" : (w.paid || 0)}</td>
-                      <td>{isHidden ? "*****" : (w.amount - (w.paid || 0))}</td>
-                      <td>{formatDate(parseDate(w.date) || parseDate(w.createdAt))}</td>
-                      <td>{w.notes || ""}</td>
-                      <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.delBtn} onClick={() => handleDeleteWithdraw(w.id)}>حذف</button>}</td>
-                        <td>{(w.amount - (w.paid || 0)) > 0 && <button className={styles.payBtn} onClick={() => handleOpenPay(w)}>سداد</button>}</td> </tr> ))}
-                        </tbody>
+  {withdraws.map((w) => (
+    <tr key={w.id}>
+      <td>{w.person}</td>
+      <td>{isHidden ? "*****" : w.amount}</td>
+      <td>{isHidden ? "*****" : (w.paid || 0)}</td>
+      <td>{isHidden ? "*****" : (w.amount - (w.paid || 0))}</td>
+      <td>{formatDate(parseDate(w.date) || parseDate(w.createdAt))}</td>
+      <td>{w.notes || ""}</td>
+
+      <td>
+        {(w.amount - (w.paid || 0)) > 0 && (
+          <button
+            className={styles.delBtn}
+            onClick={() => handleDeleteWithdraw(w.id)}
+          >
+            حذف
+          </button>
+        )}
+      </td>
+
+      <td>
+        {(w.amount - (w.paid || 0)) > 0 && (
+          <button
+            className={styles.payBtn}
+            onClick={() => handleOpenPay(w)}
+          >
+            سداد
+          </button>
+        )}
+      </td>
+    </tr>
+  ))}
+</tbody>
+
                         </table> 
                           </div>
       </div>

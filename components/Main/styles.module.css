@@ -19,6 +19,7 @@
 .title h3 {
     font-size: 30px;
 }
+
 .rightSide {
     display: flex;
     justify-content: center;
@@ -972,4 +973,5 @@
       overflow-x: auto;
     }
 }
+
 

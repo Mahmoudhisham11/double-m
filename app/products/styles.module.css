@@ -53,6 +53,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    overflow-x: auto;
 }
 .addContainer {
     width: 100%;
@@ -236,9 +237,6 @@
 }
 
 @media(max-width: 767px) {
-    .tableContainer {
-        overflow: scroll;
-    }
     .inputBox {
         flex-direction: column;
     }
