@@ -1,6 +1,7 @@
 .resete {
     width: 100%;
     min-height: 100vh;
+    height: auto;
     display: flex;
     justify-content: flex-start;
     flex-direction: column;
@@ -43,6 +44,7 @@
 .invoice {
     width: 100%;
     max-width: 384px; /* مناسب للطابعة الحرارية */
+    height: auto;
     background-color: white;
     padding: 5px;
     box-sizing: border-box;

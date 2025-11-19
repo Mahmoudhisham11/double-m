@@ -41,6 +41,7 @@ function Resete() {
   return (
     <div className={styles.resete}>
       <div className={styles.invoice}>
+              <div className={styles.invoice}>
         <div className={styles.title}>
         <button onClick={() => router.push('/')} className={styles.btnBack}>رجوع</button>
         <div className={styles.imageContainer}>
@@ -97,6 +98,7 @@ function Resete() {
         <div className={styles.footer}>
           <strong>تم التوجيه بواسطة: Devoria</strong>
         </div>
+      </div>
       </div>
     </div>
   );
