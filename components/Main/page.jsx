@@ -222,19 +222,55 @@ const addToCartAndReserve = async (product, options = {}) => {
   const hasColors = product.colors && product.colors.length > 0;
   const hasSizes = product.sizes && product.sizes.length > 0;
 
-  // لو المنتج بسيط (مالوش ألوان أو مقاسات)
-  if (!hasColors && !hasSizes) {
-    // فتح popup السعر فقط
-    setVariantProduct(product);          // نخزن المنتج
-    setShowPricePopup(true);             // افتح popup السعر
-    setNewPriceInput(product.sellPrice); // السعر الافتراضي يظهر
-    return; // منع أي عملية أخرى للدالة
-  }
-
-  // المنتج ليه ألوان أو مقاسات → استمر في الإضافة للسلة كالمعتاد
   const qty = Number(options.quantity) || 1;
   if (qty <= 0) return;
 
+  // لو المنتج بسيط (مالوش ألوان أو مقاسات)
+  if (!hasColors && !hasSizes) {
+    // فتح popup السعر فقط
+    setVariantProduct(product);          
+    setShowPricePopup(true);             
+    setNewPriceInput(product.sellPrice); 
+
+    // إضافة المنتج للسلة مباشرة بعد تحديد السعر والكمية
+    const sellPrice = Number(options.price ?? product.sellPrice);
+    const cartData = {
+      name: product.name,
+      sellPrice,
+      productPrice: product.sellPrice,
+      quantity: qty,
+      type: product.type,
+      total: sellPrice * qty,
+      date: new Date(),
+      shop: shop,
+      color: "",
+      size: "",
+      originalProductId: product.id,
+      code: product.code || "",
+      buyPrice: product.buyPrice || 0,
+    };
+
+    await addDoc(collection(db, "cart"), cartData);
+
+    // خصم الكمية من المخزون
+    if (product.id) {
+      const prodRef = doc(db, "lacosteProducts", product.id);
+      const prodSnap = await getDoc(prodRef);
+      if (prodSnap.exists()) {
+        const currentQty = prodSnap.data().quantity || 0;
+        const newQty = currentQty - qty;
+        if (newQty > 0) {
+          await updateDoc(prodRef, { quantity: newQty });
+        } else {
+          await deleteDoc(prodRef);
+        }
+      }
+    }
+
+    return;
+  }
+
+  // المنتج ليه ألوان أو مقاسات → استمر في الإضافة للسلة كالمعتاد
   const available = getAvailableForVariant(product, options.color, options.size);
   if (qty > available) {
     alert(`الكمية المطلوبة (${qty}) أكبر من المتاح (${available})`);
@@ -261,8 +297,55 @@ const addToCartAndReserve = async (product, options = {}) => {
   // إضافة المنتج للسلة
   await addDoc(collection(db, "cart"), cartData);
 
-  // باقي الكود الأصلي لتحديث المخزون...
+  // خصم الكمية من المخزون حسب اللون والمقاس
+  if (product.id) {
+    const prodRef = doc(db, "lacosteProducts", product.id);
+    const prodSnap = await getDoc(prodRef);
+    if (prodSnap.exists()) {
+      const prodData = prodSnap.data();
+      let newQty = prodData.quantity || 0;
+
+      // إذا المنتج له ألوان
+      if (options.color && prodData.colors && prodData.colors.length > 0) {
+        const colorIndex = prodData.colors.findIndex(c => c.color === options.color);
+        if (colorIndex >= 0) {
+          const colorQty = prodData.colors[colorIndex].quantity || 0;
+          const updatedQty = colorQty - qty;
+          if (updatedQty > 0) {
+            prodData.colors[colorIndex].quantity = updatedQty;
+          } else {
+            // حذف اللون إذا الكمية صفر
+            prodData.colors.splice(colorIndex, 1);
+          }
+        }
+      }
+
+      // إذا المنتج له مقاسات
+      if (options.size && prodData.sizes && prodData.sizes.length > 0) {
+        const sizeIndex = prodData.sizes.findIndex(s => s.size === options.size);
+        if (sizeIndex >= 0) {
+          const sizeQty = prodData.sizes[sizeIndex].quantity || 0;
+          const updatedQty = sizeQty - qty;
+          if (updatedQty > 0) {
+            prodData.sizes[sizeIndex].quantity = updatedQty;
+          } else {
+            // حذف المقاس إذا الكمية صفر
+            prodData.sizes.splice(sizeIndex, 1);
+          }
+        }
+      }
+
+      // تحديث الكمية العامة للمنتج (إذا فيه حقل quantity)
+      newQty -= qty;
+      if (newQty > 0 || (prodData.colors && prodData.colors.length > 0) || (prodData.sizes && prodData.sizes.length > 0)) {
+        await updateDoc(prodRef, prodData);
+      } else {
+        await deleteDoc(prodRef);
+      }
+    }
+  }
 };
+
 
 
 
