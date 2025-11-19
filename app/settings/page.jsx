@@ -262,7 +262,7 @@ export default function Settings() {
                     { key: "products", label: "صفحة المنتجات" },
                     { key: "masrofat", label: "صفحة المصاريف" },
                     { key: "employees", label: "صفحة الموظفين" },
-                    { key: "debts", label: "صفحة البضاعة" },
+                    { key: "debts", label: "صفحة فواتير البضاعة" },
                     { key: "reports", label: "صفحة المرتجعات" },
                     { key: "settings", label: "صفحة الإعدادات" },
                   ].map((item) => (

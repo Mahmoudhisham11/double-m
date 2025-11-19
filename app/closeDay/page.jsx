@@ -90,7 +90,7 @@ useEffect(() => {
 
   const renderSalesRows = (salesArr) => {
     if (!Array.isArray(salesArr) || salesArr.length === 0) {
-      return <tr><td colSpan={currentUser === "mmbeso01119750570" ? 6 : 5} style={{ padding: 12 }}>لا توجد مبيعات في هذه التقفيلة</td></tr>;
+      return <tr><td colSpan={currentUser === "mostafabeso10@gmail.com" ? 6 : 5} style={{ padding: 12 }}>لا توجد مبيعات في هذه التقفيلة</td></tr>;
     }
 
     return salesArr.map(sale => {
@@ -107,7 +107,7 @@ useEffect(() => {
           <td>{date}</td>
           <td>{sale.cart ? sale.cart.map(i => i.name).join(", ") : "-"}</td>
           <td>{total}</td>
-          {currentUser === "mmbeso01119750570" && <td>{profit}</td>}
+          {currentUser === "mostafabeso10@gmail.com" && <td>{profit}</td>}
         </tr>
       );
     });
@@ -144,7 +144,7 @@ useEffect(() => {
 
         <div className={styles.controls} style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 16 }}>
           <label>بحث بالتاريخ:</label>
-          {currentUser === 'mmbeso01119750570' ? 
+          {currentUser === 'mostafabeso10@gmail.com' ? 
             <input
             type="date"
             value={dateISO}
@@ -229,7 +229,7 @@ useEffect(() => {
                   <th>الوقت</th>
                   <th>المنتجات</th>
                   <th>الإجمالي</th>
-                  {currentUser === "mmbeso01119750570" && <th>الربح</th>}
+                  {currentUser === "mostafabeso10@gmail.com" && <th>الربح</th>}
                 </tr>
               ) : (
                 <tr>
@@ -244,7 +244,7 @@ useEffect(() => {
             <tbody>
               {!selectedClose ? (
                 <tr>
-                  <td colSpan={showSales ? (currentUser === "mmbeso01119750570" ? 6 : 5) : 4} style={{ padding: 12 }}>
+                  <td colSpan={showSales ? (currentUser === "mostafabeso10@gmail.com" ? 6 : 5) : 4} style={{ padding: 12 }}>
                     اختر تقفيلة لعرض البيانات
                   </td>
                 </tr>
