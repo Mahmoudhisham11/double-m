@@ -545,7 +545,7 @@ const computeTempColorsQty = () => {
               gap: 0.5mm;
             }
             .name {
-              font-size: 7.5pt;
+              font-size: 9pt;
               font-weight: bold;
               line-height: 1;
               white-space: nowrap;
@@ -554,7 +554,7 @@ const computeTempColorsQty = () => {
               max-width: 100%;
             }
             .price {
-              font-size: 7pt;
+              font-size: 9pt;
               line-height: 1;
               white-space: nowrap;
               overflow: hidden;
@@ -571,6 +571,7 @@ const computeTempColorsQty = () => {
           <div class="label">
             <div class="name">${product.name ?? ''}</div>
             <div class="price">${product.sellPrice ?? ''} EGP</div>
+            <div class="price">${product.code ?? ''} </div>
             <svg id="barcode" class="barcode"></svg>
           </div>
           <script>
