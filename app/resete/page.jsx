@@ -41,11 +41,14 @@ function Resete() {
   return (
     <div className={styles.resete}>
       <div className={styles.invoice}>
-              <div className={styles.invoice}>
+        <div className={styles.invoice}>
         <div className={styles.title}>
         <button onClick={() => router.push('/')} className={styles.btnBack}>رجوع</button>
-        <div className={styles.imageContainer}>
+        <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column'}}>
+          <div className={styles.imageContainer}>
           <Image src={resetImage} fill style={{ objectFit: 'cover' }} alt="logo" />
+        </div>
+        <h3>بوابة الالف مسكن</h3>
         </div>
       </div>
       </div>
