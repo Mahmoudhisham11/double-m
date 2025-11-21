@@ -545,6 +545,12 @@ const computeTempColorsQty = () => {
               text-align: center;
               gap: 0.5mm;
             }
+              .container {
+                width: 100%;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+              }
             .name {
               font-size: 9pt;
               font-weight: bold;
@@ -570,10 +576,13 @@ const computeTempColorsQty = () => {
         </head>
         <body>
           <div class="label">
+          <div class="container">
             <div class="name">${product.name ?? ''}</div>
             <div class="price">${product.sellPrice ?? ''} EGP</div>
-            <div class="price">${product.code ?? ''} </div>
+          </div>
+            
             <svg id="barcode" class="barcode"></svg>
+            <div class="price">${product.code ?? ''} </div>
           </div>
           <script>
             window.onload = function () {
