@@ -338,6 +338,7 @@ const computeTempColorsQty = () => {
       quantity: product.quantity || "",
       category: product.category || "",
     });
+    setFinalPrice(product.finalPrice)
 
     if (product.colors && product.colors.length) {
       const normalized = product.colors.map((c) => {

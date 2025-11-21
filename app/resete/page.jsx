@@ -58,6 +58,7 @@ function Resete() {
         <h3 style={{ textAlign: 'center' }}>فاتورة مبيعات</h3>
         {/* ✅ التاريخ */}
         <p><strong>التاريخ:</strong> {currentDate}</p>
+        <p><strong>رقم الفاتورة:</strong> {invoice.invoiceNumber}</p>
         <p><strong>العميل:</strong> {invoice.clientName}</p>
         <p><strong>الهاتف:</strong> {invoice.phone}</p>
 

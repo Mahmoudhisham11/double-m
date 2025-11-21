@@ -219,7 +219,7 @@ useEffect(() => {
           </div>
         </div>
 
-        <div className={styles.tableContainer} style={{ border: "1px solid #eee", borderRadius: 8, overflow: "hidden" }}>
+        <div className={styles.tableContainer} style={{ border: "1px solid #eee", borderRadius: 8 }}>
           <table>
             <thead>
               {showSales ? (

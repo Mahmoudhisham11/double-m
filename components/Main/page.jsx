@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 
 function Main() {
   const router = useRouter();
+  const [openSalles, setOpnSalles] = useState(false)
   const [isHidden, setIsHidden] = useState(true);
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
@@ -34,19 +35,15 @@ function Main() {
   const [masrofat, setMasrofat] = useState([])
   const [totalMaxDiscount, setTotalMaxDiscount] = useState(0)
   const [editPricePopup, setEditPricePopup] = useState(false);
-const [productToEdit, setProductToEdit] = useState(null);
-const [newPriceInput, setNewPriceInput] = useState(0);
-const [tempPrices, setTempPrices] = useState({});
-const [showPricePopup, setShowPricePopup] = useState(false);
-
-
-
+  const [productToEdit, setProductToEdit] = useState(null);
+  const [newPriceInput, setNewPriceInput] = useState(0);
+  const [tempPrices, setTempPrices] = useState({});
+  const [showPricePopup, setShowPricePopup] = useState(false);
   // NEW: discount popup & values
   const [showDiscountPopup, setShowDiscountPopup] = useState(false);
   const [discountInput, setDiscountInput] = useState(0);
   const [discountNotes, setDiscountNotes] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState(0);
-
   // Variant modal states (updated to support color -> sizes -> qty per size)
   const [showVariantPopup, setShowVariantPopup] = useState(false);
   const [variantProduct, setVariantProduct] = useState(null); // lacosteProducts doc (with id)
@@ -57,6 +54,7 @@ const [showPricePopup, setShowPricePopup] = useState(false);
   const nameRef = useRef();
   const phoneRef = useRef();
   const shop = typeof window !== "undefined" ? localStorage.getItem("shop") : "";
+  const userName = typeof window !== "undefined" ? localStorage.getItem("userName") : "";
 
   useEffect(() => {
     if (!shop) return;
@@ -614,13 +612,7 @@ const handleApplyDiscount = () => {
 
   setAppliedDiscount(numeric);
   setShowDiscountPopup(false);
-};
-
-
-
-
-
-
+  };
 
   const handleClearDiscount = () => {
     setAppliedDiscount(0);
@@ -665,202 +657,196 @@ const handleSaveNewPrice = () => {
   // -------------------------
   // handleSaveReport: now we trust that stock was decremented when adding; still we verify availability as safety
   // -------------------------
-const handleSaveReport = async () => {
-  if (isSaving) return;
-  setIsSaving(true);
+    const handleSaveReport = async () => {
+      if (isSaving) return;
+      setIsSaving(true);
 
-  const clientName = nameRef.current?.value || "";
-  const phone = phoneRef.current?.value || "";
+      const clientName = nameRef.current?.value || "";
+      const phone = phoneRef.current?.value || "";
 
-  if (cart.length === 0) {
-    alert("يرجى إضافة منتجات إلى السلة قبل الحفظ");
-    setIsSaving(false);
-    return;
-  }
-
-  try {
-    // 🧾 جلب رقم الفاتورة التسلسلي
-    const counterRef = doc(db, "counters", "invoiceCounter");
-    const invoiceNumber = await runTransaction(db, async (transaction) => {
-      const counterSnap = await transaction.get(counterRef);
-      let currentNumber = 0;
-
-      if (counterSnap.exists()) {
-        currentNumber = counterSnap.data().lastInvoiceNumber || 0;
+      if (cart.length === 0) {
+        alert("يرجى إضافة منتجات إلى السلة قبل الحفظ");
+        setIsSaving(false);
+        return;
       }
 
-      const newNumber = currentNumber + 1;
-      transaction.set(counterRef, { lastInvoiceNumber: newNumber }, { merge: true });
-      return newNumber;
-    });
+      try {
+        // 🧾 جلب رقم الفاتورة التسلسلي
+        const counterRef = doc(db, "counters", "invoiceCounter");
+        const invoiceNumber = await runTransaction(db, async (transaction) => {
+          const counterSnap = await transaction.get(counterRef);
+          let currentNumber = 0;
 
-    // 🧮 الحسابات
-    const computedSubtotal = cart.reduce((sum, item) => sum + (item.sellPrice * item.quantity), 0);
-    const computedFinalTotal = Math.max(0, computedSubtotal - appliedDiscount);
-    const discountRatio = computedSubtotal > 0 ? appliedDiscount / computedSubtotal : 0;
-    const computedProfit = cart.reduce((sum, item) => {
-      const itemSellTotal = item.sellPrice * item.quantity;
-      const itemDiscount = itemSellTotal * discountRatio;
-      const itemNetSell = itemSellTotal - itemDiscount;
-      const itemBuyTotal = (item.buyPrice || 0) * item.quantity;
-      return sum + (itemNetSell - itemBuyTotal);
-    }, 0);
+          if (counterSnap.exists()) {
+            currentNumber = counterSnap.data().lastInvoiceNumber || 0;
+          }
 
-    // 🔥 بيانات الفاتورة
-    const saleData = {
-      invoiceNumber,
-      cart,
-      clientName,
-      phone,
-      subtotal: computedSubtotal,
-      discount: appliedDiscount,
-      discountNotes: discountNotes,
-      total: computedFinalTotal,
-      profit: computedProfit,
-      date: new Date(),
-      shop,
-      employee: selectedEmployee || "غير محدد",
-    };
-
-    // 🧾 حفظ البيانات
-    await addDoc(collection(db, "dailySales"), saleData);
-    await addDoc(collection(db, "employeesReports"), saleData);
-
-    // 🔄 تحديث المخزون بعد البيع
-    for (const item of cart) {
-      if (!item.originalProductId) continue;
-
-      const prodRef = doc(db, "lacosteProducts", item.originalProductId);
-      const prodSnap = await getDoc(prodRef);
-      if (!prodSnap.exists()) continue;
-
-      const prodData = prodSnap.data();
-
-      // 🟢 تحديد إن المنتج بسيط فعلاً:
-      const isSimpleProduct =
-        (!Array.isArray(prodData.colors) || prodData.colors.length === 0) &&
-        (!Array.isArray(prodData.sizes) || prodData.sizes.length === 0);
-
-      if (isSimpleProduct) {
-        const currentQty = prodData.quantity || 0;
-        const newQty = currentQty - item.quantity;
-
-        await updateDoc(prodRef, {
-          quantity: Math.max(0, newQty)
+          const newNumber = currentNumber + 1;
+          transaction.set(counterRef, { lastInvoiceNumber: newNumber }, { merge: true });
+          return newNumber;
         });
 
-        continue;
-      }
-
-      // 🟠 المنتج له ألوان/مقاسات
-      let updatedData = { ...prodData };
-
-      // له ألوان
-      if (item.color && Array.isArray(updatedData.colors)) {
-        updatedData.colors = updatedData.colors
-          .map(c => {
-            if (c.color !== item.color) return c;
-
-            if (item.size && Array.isArray(c.sizes)) {
-              c.sizes = c.sizes
-                .map(s => {
-                  if (s.size === item.size) {
-                    s.qty = Math.max(0, (s.qty || s.quantity || 0) - item.quantity);
-                  }
-                  return s;
-                })
-                .filter(s => (s.qty || 0) > 0);
-            } else {
-              c.quantity = Math.max(0, (c.quantity || 0) - item.quantity);
-            }
-
-            return c;
-          })
-          .filter(c => {
-            if (c.sizes) return c.sizes.length > 0;
-            if (c.quantity !== undefined) return c.quantity > 0;
-            return true;
-          });
-      }
-
-      // له مقاسات فقط
-      if (item.size && Array.isArray(updatedData.sizes)) {
-        updatedData.sizes = updatedData.sizes
-          .map(s => {
-            if (s.size === item.size) {
-              s.qty = Math.max(0, (s.qty || s.quantity || 0) - item.quantity);
-            }
-            return s;
-          })
-          .filter(s => (s.qty || 0) > 0);
-      }
-
-      // حساب إجمالي الكمية النهائي
-      let totalQty = updatedData.quantity || 0;
-
-      if (Array.isArray(updatedData.sizes)) {
-        totalQty = updatedData.sizes.reduce((sum, s) => sum + (s.qty || 0), 0);
-      }
-
-      if (Array.isArray(updatedData.colors)) {
-        totalQty = updatedData.colors.reduce((sum, c) => {
-          if (c.sizes) {
-            return sum + c.sizes.reduce((sSum, s) => sSum + (s.qty || 0), 0);
-          }
-          return sum + (c.quantity || 0);
+        // 🧮 الحسابات
+        const computedSubtotal = cart.reduce((sum, item) => sum + (item.sellPrice * item.quantity), 0);
+        const computedFinalTotal = Math.max(0, computedSubtotal - appliedDiscount);
+        const discountRatio = computedSubtotal > 0 ? appliedDiscount / computedSubtotal : 0;
+        const computedProfit = cart.reduce((sum, item) => {
+          const itemSellTotal = item.sellPrice * item.quantity;
+          const itemDiscount = itemSellTotal * discountRatio;
+          const itemNetSell = itemSellTotal - itemDiscount;
+          const itemBuyTotal = (item.buyPrice || 0) * item.quantity;
+          return sum + (itemNetSell - itemBuyTotal);
         }, 0);
+
+        // 🔥 بيانات الفاتورة
+        const saleData = {
+          invoiceNumber,
+          cart,
+          clientName,
+          phone,
+          subtotal: computedSubtotal,
+          discount: appliedDiscount,
+          discountNotes: discountNotes,
+          total: computedFinalTotal,
+          profit: computedProfit,
+          date: new Date(),
+          shop,
+          employee: selectedEmployee || "غير محدد",
+        };
+
+        // 🧾 حفظ البيانات
+        await addDoc(collection(db, "dailySales"), saleData);
+        await addDoc(collection(db, "employeesReports"), saleData);
+
+        // 🔄 تحديث المخزون بعد البيع
+        for (const item of cart) {
+          if (!item.originalProductId) continue;
+
+          const prodRef = doc(db, "lacosteProducts", item.originalProductId);
+          const prodSnap = await getDoc(prodRef);
+          if (!prodSnap.exists()) continue;
+
+          const prodData = prodSnap.data();
+
+          // 🟢 تحديد إن المنتج بسيط فعلاً:
+          const isSimpleProduct =
+            (!Array.isArray(prodData.colors) || prodData.colors.length === 0) &&
+            (!Array.isArray(prodData.sizes) || prodData.sizes.length === 0);
+
+          if (isSimpleProduct) {
+            const currentQty = prodData.quantity || 0;
+            const newQty = currentQty - item.quantity;
+
+            await updateDoc(prodRef, {
+              quantity: Math.max(0, newQty)
+            });
+
+            continue;
+          }
+
+          // 🟠 المنتج له ألوان/مقاسات
+          let updatedData = { ...prodData };
+
+          // له ألوان
+          if (item.color && Array.isArray(updatedData.colors)) {
+            updatedData.colors = updatedData.colors
+              .map(c => {
+                if (c.color !== item.color) return c;
+
+                if (item.size && Array.isArray(c.sizes)) {
+                  c.sizes = c.sizes
+                    .map(s => {
+                      if (s.size === item.size) {
+                        s.qty = Math.max(0, (s.qty || s.quantity || 0) - item.quantity);
+                      }
+                      return s;
+                    })
+                    .filter(s => (s.qty || 0) > 0);
+                } else {
+                  c.quantity = Math.max(0, (c.quantity || 0) - item.quantity);
+                }
+
+                return c;
+              })
+              .filter(c => {
+                if (c.sizes) return c.sizes.length > 0;
+                if (c.quantity !== undefined) return c.quantity > 0;
+                return true;
+              });
+          }
+
+          // له مقاسات فقط
+          if (item.size && Array.isArray(updatedData.sizes)) {
+            updatedData.sizes = updatedData.sizes
+              .map(s => {
+                if (s.size === item.size) {
+                  s.qty = Math.max(0, (s.qty || s.quantity || 0) - item.quantity);
+                }
+                return s;
+              })
+              .filter(s => (s.qty || 0) > 0);
+          }
+
+          // حساب إجمالي الكمية النهائي
+          let totalQty = updatedData.quantity || 0;
+
+          if (Array.isArray(updatedData.sizes)) {
+            totalQty = updatedData.sizes.reduce((sum, s) => sum + (s.qty || 0), 0);
+          }
+
+          if (Array.isArray(updatedData.colors)) {
+            totalQty = updatedData.colors.reduce((sum, c) => {
+              if (c.sizes) {
+                return sum + c.sizes.reduce((sSum, s) => sSum + (s.qty || 0), 0);
+              }
+              return sum + (c.quantity || 0);
+            }, 0);
+          }
+
+          if (totalQty > 0) {
+            await updateDoc(prodRef, { ...updatedData, quantity: totalQty });
+          } else {
+            await deleteDoc(prodRef);
+          }
+        }
+
+        // 🗂️ حفظ آخر فاتورة محليًا
+        if (typeof window !== "undefined") {
+          localStorage.setItem("lastInvoice", JSON.stringify({
+            invoiceNumber,
+            cart,
+            clientName,
+            phone,
+            subtotal: computedSubtotal,
+            discount: appliedDiscount,
+            discountNotes: discountNotes,
+            total: computedFinalTotal,
+            profit: computedProfit,
+            length: cart.length,
+            date: new Date(),
+          }));
+        }
+
+        // 🧹 تفريغ السلة
+        const qCart = query(collection(db, "cart"), where('shop', '==', shop));
+        const cartSnapshot = await getDocs(qCart);
+        for (const docSnap of cartSnapshot.docs) await deleteDoc(docSnap.ref);
+
+        alert("تم حفظ التقرير بنجاح");
+
+        setAppliedDiscount(0);
+        setDiscountInput(0);
+        setDiscountNotes("");
+      } catch (error) {
+        console.error("خطأ أثناء حفظ التقرير:", error);
+        alert("حدث خطأ أثناء حفظ التقرير");
       }
 
-      if (totalQty > 0) {
-        await updateDoc(prodRef, { ...updatedData, quantity: totalQty });
-      } else {
-        await deleteDoc(prodRef);
-      }
-    }
-
-    // 🗂️ حفظ آخر فاتورة محليًا
-    if (typeof window !== "undefined") {
-      localStorage.setItem("lastInvoice", JSON.stringify({
-        invoiceNumber,
-        cart,
-        clientName,
-        phone,
-        subtotal: computedSubtotal,
-        discount: appliedDiscount,
-        discountNotes: discountNotes,
-        total: computedFinalTotal,
-        profit: computedProfit,
-        length: cart.length,
-        date: new Date(),
-      }));
-    }
-
-    // 🧹 تفريغ السلة
-    const qCart = query(collection(db, "cart"), where('shop', '==', shop));
-    const cartSnapshot = await getDocs(qCart);
-    for (const docSnap of cartSnapshot.docs) await deleteDoc(docSnap.ref);
-
-    alert("تم حفظ التقرير بنجاح");
-
-    setAppliedDiscount(0);
-    setDiscountInput(0);
-    setDiscountNotes("");
-  } catch (error) {
-    console.error("خطأ أثناء حفظ التقرير:", error);
-    alert("حدث خطأ أثناء حفظ التقرير");
-  }
-
-  setIsSaving(false);
-  setSavePage(false);
-  setShowClientPopup(false);
-  router.push('/resete');
-};
-
-
-
-
-
-
+      setIsSaving(false);
+      setSavePage(false);
+      setShowClientPopup(false);
+      router.push('/resete');
+    };
   const handleCloseDay = async () => {
     // 🟡 إضافة تأكيد قبل التنفيذ
     const confirmed = window.confirm("هل أنت متأكد أنك تريد تقفيل اليوم؟");
@@ -1227,7 +1213,6 @@ const handleReturnProduct = async (item, invoiceId) => {
 };
 
 
-
   return (
     <div className={styles.mainContainer}>
       <SideBar openSideBar={openSideBar} setOpenSideBar={setOpenSideBar} />
@@ -1254,6 +1239,9 @@ const handleReturnProduct = async (item, invoiceId) => {
               </button>
               <button onClick={handleCloseDay}>
                     تقفيل اليوم
+              </button>
+              <button className={styles.sallesBtn} onClick={() => {setOpnSalles(true), console.log(openSalles)}}>
+                  فتح البيع
               </button>
             </div>
         </div>
@@ -1334,9 +1322,10 @@ const handleReturnProduct = async (item, invoiceId) => {
               <p><strong>🕒 التاريخ:</strong> {formatDate(selectedInvoice.date)}</p>
 
               {/* ✅ الخصم، ملاحظات الخصم، الربح قبل الإجمالي */}
-              {/* {selectedInvoice.profit !== undefined && (
+              {userName === 'mostafabeso10@gmail.com' && selectedInvoice.profit !== undefined && (
                 <p><strong>📈 ربح الفاتورة:</strong> {selectedInvoice.profit} جنيه</p>
-              )} */}
+              )}
+
               {selectedInvoice.discount > 0 && (
                 <p>
                   <strong>🔖 الخصم:</strong> {selectedInvoice.discount} جنيه
@@ -1380,18 +1369,16 @@ const handleReturnProduct = async (item, invoiceId) => {
             </div>
           </div>
         )}
-
-
         </div>
-
       </div>
-
       {/* باقي الكود كما هو بدون حذف */}
-      <div className={styles.resetContainer}>
+      <div className={openSalles ? `${styles.resetContainer} ${styles.active}` : `${styles.resetContainer}`}>
         <div className={styles.reset}>
           <div className={styles.topReset}>
             <div className={styles.resetTitle}>
+
               <h3>محتوى الفاتورة</h3>
+              <button className={styles.sallesBtn} onClick={() => setOpnSalles(false)}><IoIosCloseCircle/></button>
             </div>
             <div className={styles.resetActions}>
               <div className={styles.inputBox}>
@@ -1443,12 +1430,6 @@ const handleReturnProduct = async (item, invoiceId) => {
             <hr />
             <div className={styles.totalBox}>
               <h3>الاجمالي</h3>
-              {/* NEW: show profit and discount above total */}
-              <div style={{ marginBottom: 8 }}>
-                {/* <div><strong>📈 ربح الفاتورة:</strong> {profit} جنيه</div> */}
-                <div><strong>🔖 الخصم:</strong> {appliedDiscount} جنيه {appliedDiscount > 0 ? `(ملاحظة: ${discountNotes || '-'})` : null}</div>
-                <div><strong>🔖 الحد الاقصى للخصم:</strong> {appliedDiscount} جنيه {totalMaxDiscount > 0 ? `(ملاحظة: ${discountNotes || '-'})` : null}</div>
-              </div>
               <strong>{finalTotal} EGP</strong>
             </div>
             <div className={styles.resetBtns}>
@@ -1620,19 +1601,48 @@ const handleReturnProduct = async (item, invoiceId) => {
               <button onClick={() => { setShowVariantPopup(false); setVariantProduct(null); }}>إلغاء</button>
               <button onClick={async () => {
                 // التحقق من السعر قبل أي إضافة
-                if (!newPriceInput || newPriceInput < variantProduct.finalPrice) {
-                alert(`السعر الذي أدخلته أقل من السعر النهائي: ${variantProduct.finalPrice}`);
-                return;
-              }
-                if (!newPriceInput || newPriceInput > variantProduct.sellPrice) {
-                alert(`السعر الذي أدخلته اكبر من السعر النهائي: ${variantProduct.sellPrice}`);
-                return;
-              }
+                if (!newPriceInput) {
+                  alert("من فضلك أدخل السعر");
+                  return;
+                }
 
+                const price = Number(newPriceInput);
+                const finalPrice = Number(variantProduct.finalPrice);
+                const sellPrice = Number(variantProduct.sellPrice);
 
-                // جمع المقاسات المختارة بالكمية > 0
+                // ----------- السعر أقل من السعر النهائي -----------  
+                if (price < finalPrice) {
+
+                  const pass = prompt("السعر أقل من السعر النهائي، اكتب الباسورد للسماح:");
+
+                  // لو الباسورد غلط
+                  if (pass !== "229400" && pass !== "2298605522") {
+                    alert("الباسورد غير صحيح — لا يمكنك إدخال سعر أقل من السعر النهائي");
+                    return;
+                  }
+
+                  // باسورد 229860552 → يسمح بنزول 50 جنيه فقط
+                  if (pass === "2298605522") {
+                    const minAllowed = finalPrice - 50; // الحد الأدنى المسموح به
+                    if (price < minAllowed) {
+                      alert(`مسموح تنزل حتى ${minAllowed} فقط (فرق 50 جنيه عن السعر النهائي)`);
+                      return;
+                    }
+                  }
+
+                  // باسورد 1234 → يسمح بأي رقم (مفيش return هنا)
+                }
+
+                // ----------- السعر أكبر من السعر النهائي (sellPrice) -----------  
+                if (price > sellPrice) {
+                  alert(`السعر الذي أدخلته أكبر من السعر النهائي: ${sellPrice}`);
+                  return;
+                }
+
+                // ----------- جمع المقاسات المختارة -----------  
                 const entries = Object.entries(variantSizeMap)
                   .map(([size, q]) => ({ size, qty: Number(q || 0) }))
+
                   .filter(e => e.qty > 0);
 
                 if (!entries.length) {
@@ -1640,7 +1650,7 @@ const handleReturnProduct = async (item, invoiceId) => {
                   return;
                 }
 
-                // إضافة كل مقاس للسلة
+                // ----------- إضافة كل مقاس للسلة -----------  
                 for (const e of entries) {
                   const prodRef = doc(db, "lacosteProducts", variantProduct.id);
                   const prodSnap = await getDoc(prodRef);
@@ -1652,24 +1662,28 @@ const handleReturnProduct = async (item, invoiceId) => {
                     continue;
                   }
 
-                  await addToCartAndReserve(variantProduct, { 
-                    color: variantSelectedColor, 
-                    size: e.size, 
+                  await addToCartAndReserve(variantProduct, {
+                    color: variantSelectedColor,
+                    size: e.size,
                     quantity: e.qty,
-                    price: newPriceInput // السعر الذي أدخله المستخدم
+                    price: newPriceInput
                   });
                 }
 
-                // إغلاق الـ popup وتفريغ الحقول
+                // ----------- إغلاق البوب أب -----------  
                 setShowVariantPopup(false);
                 setVariantProduct(null);
                 setVariantSelectedColor("");
                 setVariantSizeMap({});
                 setProductToEdit(null);
-                setNewPriceInput(""); // تفريغ الحقل بعد الإضافة
+                setNewPriceInput("");
+
               }}>
                 أضف للسلة
               </button>
+
+
+
             </div>
           </div>
         </div>
@@ -1706,10 +1720,30 @@ const handleReturnProduct = async (item, invoiceId) => {
           <button onClick={async () => {
         if (!variantProduct) return;
 
+        // ⭐⭐ شرط الباسورد لو السعر أقل من finalPrice ⭐⭐
         if (!newPriceInput || newPriceInput < variantProduct.finalPrice) {
-          alert(`السعر الذي أدخلته أقل من السعر الافتراضي: ${variantProduct.finalPrice}`);
-          return;
+
+          const pass = prompt("السعر أقل من السعر النهائي، اكتب الباسورد للسماح:");
+
+          if (pass === "2298605522") {
+            // ✔ مسموح ولكن بحد أقصى 50 جنيه فقط
+            const minAllowed = variantProduct.finalPrice - 50;
+            if (newPriceInput < minAllowed) {
+              alert(`مسموح تنزل لحد ${minAllowed} فقط بالبسورد الحالي`);
+              return;
+            }
+          } 
+          else if (pass === "229400") {
+            // ✔ مسموح تنزل لأي سعر — بدون حدود
+          } 
+          else {
+            // ✖ باسورد غلط
+            alert("الباسورد غير صحيح — لا يمكنك إدخال سعر أقل من السعر النهائي");
+            return;
+          }
         }
+
+        // الشرط القديم كما هو
         if (!newPriceInput || newPriceInput > variantProduct.sellPrice) {
           alert(`السعر الذي أدخلته اكبر من السعر الافتراضي: ${variantProduct.sellPrice}`);
           return;
@@ -1746,7 +1780,9 @@ const handleReturnProduct = async (item, invoiceId) => {
         // الكود القديم للمنتجات اللي ليها ألوان أو مقاسات...
       }}>
         أضف للسلة
-      </button>
+</button>
+
+
           <button onClick={() => setShowPricePopup(false)}>إلغاء</button>
         </div>
       </div>

@@ -175,8 +175,6 @@ function Debts() {
   setDetailsPayments([]);
   setDetailsAslDebt(0);
 };
-
-
   const handleDelete = async (id, phone) => {
   try {
     // حذف كل السدادات الخاصة بالعميل
@@ -198,7 +196,6 @@ function Debts() {
     alert("❌ حدث خطأ أثناء الحذف");
   }
 };
-
 const filteredCustomers = customers.filter((c) => {
   if (!c.date) return false;
 
@@ -298,6 +295,7 @@ const handleConfirmPayment = async () => {
       previousDebt: previousDebt,
       remainingDebt: remainingDebt,
       date: new Date(),
+      userName: localStorage.getItem('userName'),
       shop: shop,
       source: paymentSource, // درج أو خزنة
     });
@@ -322,11 +320,6 @@ const handleConfirmPayment = async () => {
     setProcessingPayment(false);
   }
 };
-
-
-
-
-
   // ===== Open details popup
 const openDetailsPopup = async (customer) => {
   if (!customer) return;
@@ -348,9 +341,6 @@ const openDetailsPopup = async (customer) => {
   setDetailsPayments(data);
   setShowDetailsPopup(true);
 };
-
-
-
   const closeDetailsPopup = () => {
     setDetailsPayments([]);
     setShowDetailsPopup(false);
@@ -417,14 +407,14 @@ const openDetailsPopup = async (customer) => {
                     </td>
                     <td>
                       <button
-  className={styles.delBtn}
-  onClick={() => {
-    const ok = confirm("هل تريد حذف سجل هذا العميل وكل السدادات الخاصة به؟");
-    if (ok) handleDelete(customer.id, customer.phone);
-  }}
->
-  <FaRegTrashAlt />
-</button>
+                        className={styles.delBtn}
+                        onClick={() => {
+                          const ok = confirm("هل تريد حذف سجل هذا العميل وكل السدادات الخاصة به؟");
+                          if (ok) handleDelete(customer.id, customer.phone);
+                        }}
+                      >
+                        <FaRegTrashAlt />
+                      </button>
 
                     </td>
                   </tr>
@@ -497,27 +487,25 @@ const openDetailsPopup = async (customer) => {
           <div className={styles.inputBox}>
             <div className="inputContainer">
               <input
-   type="number"
-   placeholder="مبلغ السداد"
-   value={form.paymentAmount || ""}
-   onChange={(e) => setForm({ ...form, paymentAmount: e.target.value })}
- />
+                type="number"
+                placeholder="مبلغ السداد"
+                value={form.paymentAmount || ""}
+                onChange={(e) => setForm({ ...form, paymentAmount: e.target.value })}
+              />
 
             </div>
 
             <div className="inputContainer">
               <label><GiMoneyStack /></label>
               <select
-   value={form.paymentSource || "درج"}
-   onChange={(e) => setForm({ ...form, paymentSource: e.target.value })}
- >
-   <option value="خزنة">خزنة</option>
-   <option value="درج">درج</option>
-</select>
-
+                value={form.paymentSource || "درج"}
+                onChange={(e) => setForm({ ...form, paymentSource: e.target.value })}
+              >
+                <option value="خزنة">خزنة</option>
+                <option value="درج">درج</option>
+              </select>
             </div>
           </div>
-
           <button className={styles.addBtn} onClick={handleAddProduct}>
             اضف العميل
           </button>
@@ -598,6 +586,7 @@ const openDetailsPopup = async (customer) => {
   <table style={{ width: "100%", borderCollapse: "collapse" }}>
     <thead>
       <tr>
+        <th>المستخدم</th>
         <th>المبلغ المدفوع</th>
         <th>المتبقي بعد السداد</th>
         <th>التاريخ</th>
@@ -608,6 +597,7 @@ const openDetailsPopup = async (customer) => {
     <tbody>
       {detailsPayments.map(p => (
         <tr key={p.id} style={{ borderTop: "1px solid #ddd" }}>
+          <td>{p.userName} </td>
           <td>{p.paidAmount} EGP</td>
           <td>{p.remainingDebt} EGP</td>
           <td>{p.date?.toDate ? p.date.toDate().toLocaleDateString("ar-EG") : new Date(p.date).toLocaleDateString("ar-EG")}</td>
