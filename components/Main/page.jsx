@@ -197,6 +197,7 @@ function Main() {
   // -------------------------
   const openVariantForProduct = (product) => {
     setVariantProduct(product);
+    setNewPriceInput(product.sellPrice ?? product.finalPrice ?? 0);
     const firstColor = (product.colors && product.colors.length) ? product.colors[0].color : "";
     setVariantSelectedColor(firstColor);
 
@@ -217,18 +218,17 @@ function Main() {
 const addToCartAndReserve = async (product, options = {}) => {
   const hasColors = product.colors && product.colors.length > 0;
   const hasSizes = product.sizes && product.sizes.length > 0;
-
+  
   const qty = Number(options.quantity) || 1;
   if (qty <= 0) return;
-
+  
+  
   // لو المنتج بسيط (مالوش ألوان أو مقاسات)
   if (!hasColors && !hasSizes) {
     // فتح popup السعر فقط
     setVariantProduct(product);          
     setShowPricePopup(true);             
-    setNewPriceInput(product.sellPrice); 
-
-    // لن يتم الإضافة للسلة هنا، الإضافة هتحصل بعد تحديد السعر في الـ popup
+    setNewPriceInput(product.sellPrice ?? product.finalPrice ?? 0);
     return;
   }
 
@@ -1532,8 +1532,6 @@ const handleReturnProduct = async (item, invoiceId) => {
                 </div>
               </>
             )}
-
-            {/* المقاسات الخاصة باللون المحدد */}
             <div>
               <label>المقاسات للون: {variantSelectedColor || '—'}</label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
@@ -1580,23 +1578,18 @@ const handleReturnProduct = async (item, invoiceId) => {
             </div>
             <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
               <h4>السعر النهائي الافتراضي: {variantProduct?.finalPrice}</h4>
-  <label>السعر:</label>
-<input
-  type="number"
-  value={newPriceInput}
-  placeholder={`أدخل سعر ≥ ${variantProduct.finalPrice}`}
-  onChange={(e) => {
-    const val = Number(e.target.value || 0);
-    setNewPriceInput(val); // السماح للمستخدم بكتابة أي سعر
-  }}
-  style={{ width: 100, marginLeft: 8 }}
-/>
-
-
-
-
-</div>
-
+              <label>السعر:</label>
+              <input
+                type="number"
+                value={newPriceInput}
+                placeholder={`أدخل سعر ≥ ${variantProduct.finalPrice}`}
+                onChange={(e) => {
+                  const val = Number(e.target.value || 0);
+                  setNewPriceInput(val); // السماح للمستخدم بكتابة أي سعر
+                }}
+                style={{ width: 100, marginLeft: 8 }}
+              />
+            </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
               <button onClick={() => { setShowVariantPopup(false); setVariantProduct(null); }}>إلغاء</button>
               <button onClick={async () => {
@@ -1708,84 +1701,82 @@ const handleReturnProduct = async (item, invoiceId) => {
       )}
       {showPricePopup && (
         <div className={styles.popupOverlay}>
-      <div className={styles.popupBox}>
-          <h3>أدخل السعر للمنتج</h3>
-          <h4>السعر النهائي الافتراضي: {variantProduct?.finalPrice}</h4>
-          <input 
-            type="number" 
-            value={newPriceInput} 
-            onChange={(e) => setNewPriceInput(Number(e.target.value))} 
-          />
-        <div className={styles.popupBtns}>
-          <button onClick={async () => {
-        if (!variantProduct) return;
+        <div className={styles.popupBox}>
+            <h3>أدخل السعر للمنتج</h3>
+            <h4>السعر النهائي الافتراضي: {variantProduct?.finalPrice}</h4>
+            <input 
+              type="number" 
+              value={newPriceInput} 
+              onChange={(e) => setNewPriceInput(Number(e.target.value))} 
+            />
+          <div className={styles.popupBtns}>
+            <button onClick={async () => {
+          if (!variantProduct) return;
 
-        // ⭐⭐ شرط الباسورد لو السعر أقل من finalPrice ⭐⭐
-        if (!newPriceInput || newPriceInput < variantProduct.finalPrice) {
+          // ⭐⭐ شرط الباسورد لو السعر أقل من finalPrice ⭐⭐
+          if (!newPriceInput || newPriceInput < variantProduct.finalPrice) {
 
-          const pass = prompt("السعر أقل من السعر النهائي، اكتب الباسورد للسماح:");
+            const pass = prompt("السعر أقل من السعر النهائي، اكتب الباسورد للسماح:");
 
-          if (pass === "2298605522") {
-            // ✔ مسموح ولكن بحد أقصى 50 جنيه فقط
-            const minAllowed = variantProduct.finalPrice - 50;
-            if (newPriceInput < minAllowed) {
-              alert(`مسموح تنزل لحد ${minAllowed} فقط بالبسورد الحالي`);
+            if (pass === "2298605522") {
+              // ✔ مسموح ولكن بحد أقصى 50 جنيه فقط
+              const minAllowed = variantProduct.finalPrice - 50;
+              if (newPriceInput < minAllowed) {
+                alert(`مسموح تنزل لحد ${minAllowed} فقط بالبسورد الحالي`);
+                return;
+              }
+            } 
+            else if (pass === "229400") {
+              // ✔ مسموح تنزل لأي سعر — بدون حدود
+            } 
+            else {
+              // ✖ باسورد غلط
+              alert("الباسورد غير صحيح — لا يمكنك إدخال سعر أقل من السعر النهائي");
               return;
             }
-          } 
-          else if (pass === "229400") {
-            // ✔ مسموح تنزل لأي سعر — بدون حدود
-          } 
-          else {
-            // ✖ باسورد غلط
-            alert("الباسورد غير صحيح — لا يمكنك إدخال سعر أقل من السعر النهائي");
+          }
+
+          // الشرط القديم كما هو
+          if (!newPriceInput || newPriceInput > variantProduct.sellPrice) {
+            alert(`السعر الذي أدخلته اكبر من السعر الافتراضي: ${variantProduct.sellPrice}`);
             return;
           }
-        }
 
-        // الشرط القديم كما هو
-        if (!newPriceInput || newPriceInput > variantProduct.sellPrice) {
-          alert(`السعر الذي أدخلته اكبر من السعر الافتراضي: ${variantProduct.sellPrice}`);
-          return;
-        }
+          const hasColors = variantProduct.colors && variantProduct.colors.length > 0;
+          const hasSizes = variantProduct.sizes && variantProduct.sizes.length > 0;
 
-        const hasColors = variantProduct.colors && variantProduct.colors.length > 0;
-        const hasSizes = variantProduct.sizes && variantProduct.sizes.length > 0;
+          if (!hasColors && !hasSizes) {
+            // إضافة المنتج للسلة أولًا
+            await addDoc(collection(db, "cart"), {
+              name: variantProduct.name,
+              sellPrice: Number(newPriceInput),
+              productPrice: variantProduct.sellPrice,
+              quantity: 1,
+              type: variantProduct.type,
+              total: Number(newPriceInput),
+              date: new Date(),
+              shop: shop,
+              color: "",
+              size: "",
+              originalProductId: variantProduct.id,
+              code: variantProduct.code || "",
+              buyPrice: variantProduct.buyPrice || 0,
+            });
 
-        if (!hasColors && !hasSizes) {
-          // إضافة المنتج للسلة أولًا
-          await addDoc(collection(db, "cart"), {
-            name: variantProduct.name,
-            sellPrice: Number(newPriceInput),
-            productPrice: variantProduct.sellPrice,
-            quantity: 1,
-            type: variantProduct.type,
-            total: Number(newPriceInput),
-            date: new Date(),
-            shop: shop,
-            color: "",
-            size: "",
-            originalProductId: variantProduct.id,
-            code: variantProduct.code || "",
-            buyPrice: variantProduct.buyPrice || 0,
-          });
+            // إغلاق popup
+            setShowPricePopup(false);
+            setVariantProduct(null);
+            setNewPriceInput("");
+            return;
+          }
 
-          // إغلاق popup
-          setShowPricePopup(false);
-          setVariantProduct(null);
-          setNewPriceInput("");
-          return;
-        }
-
-        // الكود القديم للمنتجات اللي ليها ألوان أو مقاسات...
-      }}>
-        أضف للسلة
-</button>
-
-
-          <button onClick={() => setShowPricePopup(false)}>إلغاء</button>
+          // الكود القديم للمنتجات اللي ليها ألوان أو مقاسات...
+        }}>
+          أضف للسلة
+            </button>
+            <button onClick={() => setShowPricePopup(false)}>إلغاء</button>
+          </div>
         </div>
-      </div>
         </div>
       )}
     </div>
