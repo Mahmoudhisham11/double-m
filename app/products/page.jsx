@@ -160,7 +160,7 @@ setTotalProducts(totalQty);
 
 if (searchCode.trim()) {
   filtered = data.filter((p) =>
-    p.name?.toString().toLowerCase().includes(searchCode.trim().toLowerCase())
+    p.code?.toString().toLowerCase().includes(searchCode.trim().toLowerCase())
   );
 } else {
   filtered = data;
@@ -736,13 +736,13 @@ const confirmDeleteSelected = async () => {
                     <input
                       type="text"
                       list="codesList"
-                      placeholder="ابحث بالاسم"
+                      placeholder=" ابحث بالكود"
                       value={searchCode}
                       onChange={(e) => setSearchCode(e.target.value)}
                     />
                     <datalist id="codesList">
                       {products.map((p) => (
-                        <option key={p.id} value={p.name} />
+                        <option key={p.id} value={p.code} />
                       ))}
                     </datalist>
                   </div>
@@ -753,116 +753,96 @@ const confirmDeleteSelected = async () => {
                   <p>اجمالي البيع: {totalSell} EGP</p>
                   <p>اجمالي المنتجات: {totalProducts} </p>
                 </div>
-                <div className={styles.tableContainer}>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>الكود</th>
-                        <th>الاسم</th>
-                        <th>سعر الشراء</th>
-                        <th>سعر البيع</th>
-                        <th>السعر النهائي</th>
-                        <th>الكمية</th>
-                        <th>الألوان (الكمية)</th>
-                        <th>تفصيل المقاسات</th>
-                        <th>التاريخ</th>
-                        <th>خيارات</th>
+                <tbody>
+                  {([...filteredProducts].sort((a, b) => Number(a.code) - Number(b.code))).map((product) => {
+                    const colorsList = product.colors || [];
+                    let totalQ = 0;
+
+                    // حساب الكمية الإجمالية لكل المنتج
+                    colorsList.forEach(c => {
+                      const colorTotal = (c.sizes && c.sizes.length)
+                        ? c.sizes.reduce((s, it) => s + Number(it.qty || 0), 0)
+                        : (c.quantity || 0);
+                      totalQ += colorTotal;
+                    });
+
+                    return (
+                      <tr key={product.id}>
+                        <td>{product.code}</td>
+                        <td>{product.name || "-"}</td>
+                        <td>{product.buyPrice || 0} EGP</td>
+                        <td>{product.sellPrice || 0} EGP</td>
+                        <td>{product.finalPrice} EGP</td>
+                        <td>{totalQ || product.quantity || 0}</td>
+
+                        <td style={{ maxWidth: 150 }}>
+                          {colorsList.length === 0 ? (
+                            "-"
+                          ) : (
+                            colorsList.map(c => {
+                              const colorTotal = (c.sizes && c.sizes.length)
+                                ? c.sizes.reduce((s, it) => s + Number(it.qty || 0), 0)
+                                : (c.quantity || 0);
+                              return (
+                                <div
+                                  key={c.color}
+                                  style={{
+                                    whiteSpace: "nowrap",
+                                    border: "1px solid #eee",
+                                    padding: "2px 6px",
+                                    borderRadius: 4,
+                                    background: "#f9f9f9",
+                                    fontSize: 14,
+                                    marginBottom: 4
+                                  }}
+                                >
+                                  <strong>{c.color}:</strong> {colorTotal}
+                                </div>
+                              );
+                            })
+                          )}
+                        </td>
+
+                        <td style={{ maxWidth: 300 }}>
+                          {colorsList.length === 0 ? (
+                            "-"
+                          ) : (
+                            colorsList.map(c => {
+                              const detail = (c.sizes && c.sizes.length)
+                                ? c.sizes.map(s => `${s.size}(${s.qty})`).join(", ")
+                                : (c.quantity ? `كمية: ${c.quantity}` : "-");
+                              return (
+                                <div
+                                  key={c.color}
+                                  style={{
+                                    whiteSpace: "nowrap",
+                                    border: "1px solid #eee",
+                                    padding: "2px 6px",
+                                    borderRadius: 4,
+                                    background: "#f9f9f9",
+                                    fontSize: 14,
+                                    marginBottom: 4
+                                  }}
+                                >
+                                  <strong>{c.color}:</strong> {detail}
+                                </div>
+                              );
+                            })
+                          )}
+                        </td>
+
+                        <td>{product.date?.toDate ? product.date.toDate().toLocaleDateString("ar-EG") : product.date}</td>
+
+                        <td className={styles.actions}>
+                          <button onClick={() => handleDelete(product)}><FaRegTrashAlt /></button>
+                          <button onClick={() => handleEdit(product)}><MdOutlineEdit /></button>
+                          <button onClick={() => handlePrintLabel(product)}>🖨️</button>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {filteredProducts.map((product) => {
-                        const colorsList = product.colors || [];
-                        let totalQ = 0;
+                    );
+                  })}
+                </tbody>
 
-                        // حساب الكمية الإجمالية لكل المنتج
-                        colorsList.forEach(c => {
-                          const colorTotal = (c.sizes && c.sizes.length)
-                            ? c.sizes.reduce((s, it) => s + Number(it.qty || 0), 0)
-                            : (c.quantity || 0);
-                          totalQ += colorTotal;
-                        });
-
-                        return (
-                          <tr key={product.id}>
-                            <td>{product.code}</td>
-                            <td>{product.name || "-"}</td>
-                            <td>{product.buyPrice || 0} EGP</td>
-                            <td>{product.sellPrice || 0} EGP</td>
-                            <td>{product.finalPrice} EGP</td>
-                            <td>{totalQ || product.quantity || 0}</td>
-
-                            {/* خلية الألوان مع الكمية */}
-                            <td style={{ maxWidth: 150 }}>
-                              {colorsList.length === 0 ? (
-                                "-"
-                              ) : (
-                                colorsList.map(c => {
-                                  const colorTotal = (c.sizes && c.sizes.length)
-                                    ? c.sizes.reduce((s, it) => s + Number(it.qty || 0), 0)
-                                    : (c.quantity || 0);
-                                  return (
-                                    <div
-                                      key={c.color}
-                                      style={{
-                                        whiteSpace: "nowrap",
-                                        border: "1px solid #eee",
-                                        padding: "2px 6px",
-                                        borderRadius: 4,
-                                        background: "#f9f9f9",
-                                        fontSize: 14,
-                                        marginBottom: 4
-                                      }}
-                                    >
-                                      <strong>{c.color}:</strong> {colorTotal}
-                                    </div>
-                                  );
-                                })
-                              )}
-                            </td>
-
-                            {/* خلية تفصيل المقاسات */}
-                            <td style={{ maxWidth: 300 }}>
-                              {colorsList.length === 0 ? (
-                                "-"
-                              ) : (
-                                colorsList.map(c => {
-                                  const detail = (c.sizes && c.sizes.length)
-                                    ? c.sizes.map(s => `${s.size}(${s.qty})`).join(", ")
-                                    : (c.quantity ? `كمية: ${c.quantity}` : "-");
-                                  return (
-                                    <div
-                                      key={c.color}
-                                      style={{
-                                        whiteSpace: "nowrap",
-                                        border: "1px solid #eee",
-                                        padding: "2px 6px",
-                                        borderRadius: 4,
-                                        background: "#f9f9f9",
-                                        fontSize: 14,
-                                        marginBottom: 4
-                                      }}
-                                    >
-                                      <strong>{c.color}:</strong> {detail}
-                                    </div>
-                                  );
-                                })
-                              )}
-                            </td>
-
-                            <td>{product.date?.toDate ? product.date.toDate().toLocaleDateString("ar-EG") : product.date}</td>
-
-                            {/* خيارات */}
-                            <td className={styles.actions}>
-                              <button onClick={() => handleDelete(product)}><FaRegTrashAlt /></button>
-                              <button onClick={() => handleEdit(product)}><MdOutlineEdit /></button>
-                              <button onClick={() => handlePrintLabel(product)}>🖨️</button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
 
               </div>
             )}

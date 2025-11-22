@@ -1225,6 +1225,28 @@ const handleReturnProduct = async (item, invoiceId) => {
     item.isReturning = false;
   }
 };
+const handleReturnUI = async (item) => {
+  await handleReturnProduct(item, selectedInvoice.id);
+
+  // 🔥 إزالة المنتج من الجدول مباشرة بعد تنفيذ المرتجع
+  const updatedCart = selectedInvoice.cart.filter(
+    (p) =>
+      !(
+        p.code === item.code &&
+        p.quantity === item.quantity &&
+        p.sellPrice === item.sellPrice &&
+        p.name === item.name &&
+        (p.color || "") === (item.color || "") &&
+        (p.size || "") === (item.size || "")
+      )
+  );
+
+  setSelectedInvoice({
+    ...selectedInvoice,
+    cart: updatedCart
+  });
+};
+
 
 
 
@@ -1291,34 +1313,38 @@ const handleReturnProduct = async (item, invoiceId) => {
           ) : (
             <div className={styles.tableContainer}>
               <table>
-              <thead>
-                <tr>
-                  <th>رقم الفاتورة</th>
-                  <th>العميل</th>
-                  <th>رقم الهاتف</th>
-                  <th>الموظف</th>
-                  <th>الإجمالي</th>
-                  <th>التاريخ</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredInvoices.map((invoice) => (
-                  <tr
-                    key={invoice.id}
-                    onClick={() => setSelectedInvoice(invoice)}
-                    className={styles.tableRow}
-                  >
-                    <td>{invoice.invoiceNumber || "بدون اسم"}</td>
-                    <td>{invoice.clientName || "بدون اسم"}</td>
-                    <td>{invoice.phone || "-"}</td>
-                    <td>{invoice.employee || "غير محدد"}</td>
-                    <td>{isHidden? '****' : invoice.total} جنيه</td>
-                    <td>{formatDate(invoice.date)}</td>
+                <thead>
+                  <tr>
+                    <th>رقم الفاتورة</th>
+                    <th>العميل</th>
+                    <th>رقم الهاتف</th>
+                    <th>الموظف</th>
+                    <th>الإجمالي</th>
+                    <th>التاريخ</th>
                   </tr>
-                ))} 
-              </tbody>
-            </table>
+                </thead>
+
+                <tbody>
+                  {[...filteredInvoices]
+                    .sort((a, b) => Number(a.invoiceNumber) - Number(b.invoiceNumber))
+                    .map((invoice) => (
+                      <tr
+                        key={invoice.id}
+                        onClick={() => setSelectedInvoice(invoice)}
+                        className={styles.tableRow}
+                      >
+                        <td>{invoice.invoiceNumber || "بدون اسم"}</td>
+                        <td>{invoice.clientName || "بدون اسم"}</td>
+                        <td>{invoice.phone || "-"}</td>
+                        <td>{invoice.employee || "غير محدد"}</td>
+                        <td>{isHidden ? '****' : invoice.total} جنيه</td>
+                        <td>{formatDate(invoice.date)}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
             </div>
+
           )}
 
           {selectedInvoice && (
@@ -1370,12 +1396,12 @@ const handleReturnProduct = async (item, invoiceId) => {
                       <td>{item.quantity}</td>
                       <td>{item.serial || "-"}</td>
                       <td>
-                        {userName.includes['medo','mostafabeso10@gmail.com'] ? <button
+                        {userName === 'mostafabeso10@gmail.com' || 'medo' && <button
                           className={styles.returnBtn}
-                          onClick={() => handleReturnProduct(item, selectedInvoice.id)}
+                          onClick={() => handleReturnUI(item)}
                         >
                           مرتجع
-                        </button>: ""}
+                        </button>}
                       </td>
                     </tr>
                   ))}
