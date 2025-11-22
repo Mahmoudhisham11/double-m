@@ -35,6 +35,7 @@ function Products() {
   const [searchCode, setSearchCode] = useState("");
   const [totalBuy, setTotalBuy] = useState(0);
   const [totalSell, setTotalSell] = useState(0);
+  const [finaltotal, setFinalTotal] = useState(0);
   const [totalProducts, setTotalProducts] = useState(0)
   const [showDeletePopup, setShowDeletePopup] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -135,6 +136,7 @@ setTotalProducts(totalQty);
 
       let totalBuyAmount = 0;
       let totalSellAmount = 0;
+      let finalTotalAmount = 0
       data.forEach((product) => {
         let productQty = 0;
         if (product.colors && product.colors.length) {
@@ -151,10 +153,12 @@ setTotalProducts(totalQty);
           productQty = Number(product.quantity || 0);
         }
         totalBuyAmount += (product.buyPrice || 0) * productQty;
+        finalTotalAmount += (product.buyPrice || 0) * productQty;
         totalSellAmount += (product.sellPrice || 0) * productQty;
       });
       setTotalBuy(totalBuyAmount);
       setTotalSell(totalSellAmount);
+      setFinalTotal(finalTotalAmount)
 
       let filtered;
 
@@ -751,6 +755,7 @@ const confirmDeleteSelected = async () => {
                 <div className={styles.totals}>
                   <p>اجمالي الشراء: {totalBuy} EGP</p>
                   <p>اجمالي البيع: {totalSell} EGP</p>
+                  <p>اجمالي النهائي: {finaltotal} EGP</p>
                   <p>اجمالي المنتجات: {totalProducts} </p>
                 </div>
                 <div className={styles.tableContainer}>
