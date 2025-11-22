@@ -101,32 +101,33 @@ export default function DailyReports() {
 <button
   onClick={() => {
     if (typeof window !== "undefined") {
-      const printContent = document.getElementById("productsTable");
-      if (printContent) {
-        const WinPrint = window.open("", "", "width=900,height=650");
-        WinPrint.document.write(`
-          <html>
-            <head>
-              <title>طباعة المنتجات</title>
-              <style>
-                table { width: 100%; border-collapse: collapse; }
-                th, td { border: 1px solid #000; padding: 8px; text-align: left; }
-              </style>
-            </head>
-            <body>${printContent.outerHTML}</body>
-          </html>
-        `);
-        WinPrint.document.close();
-        WinPrint.focus();
-        WinPrint.print();
-        WinPrint.close();
-      }
+      const table = document.getElementById("productsTable");
+      if (!table) return;
+
+      const printWindow = window.open("", "", "width=900,height=650");
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>طباعة المنتجات</title>
+            <style>
+              table { width: 100%; border-collapse: collapse; }
+              th, td { border: 1px solid #000; padding: 8px; text-align: left; }
+            </style>
+          </head>
+          <body>${table.outerHTML}</body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+      // شيل printWindow.close() عشان النافذة متتقفلش على طول
     }
   }}
-  style={{ padding: "8px 12px", cursor: "pointer", marginBottom: "12px", background: "#ffd400", border: "none", borderRadius: 6 }}
+  style={{ padding: "8px 12px", marginBottom: "12px", background: "#ffd400", border: "none", borderRadius: 6 }}
 >
   طباعة المنتجات
 </button>
+
 
         {/* ✔ عرض إجمالي الكمية */}
         <div className={styles.totals}>
@@ -135,7 +136,7 @@ export default function DailyReports() {
 
         {/* ✔ جدول المنتجات */}
         <div className={styles.tableContainer}>
-          <table>
+          <table id="productsTable">
             <thead>
               <tr>
                 <th>الكود</th>
