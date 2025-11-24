@@ -1398,7 +1398,9 @@ const handleReturnUI = async (item) => {
                     <th>الكود</th>
                     <th>المنتج</th>
                     <th>السعر</th>
-                    <th>سعر الجملة</th>
+                    {userName === 'mostafabeso10@gmail.com' && 
+                      <th>سعر الجملة</th>
+                    }
                     <th>الكمية</th>
                     <th>إجراء</th>
                   </tr>
@@ -1409,7 +1411,9 @@ const handleReturnUI = async (item) => {
                       <td>{item.code}</td>
                       <td>{item.name} {item.color ? ` - ${item.color}` : ""} {item.size ? ` - ${item.size}` : ""}</td>
                       <td>{item.sellPrice}</td>
-                      <td>{item.buyPrice}</td>
+                      {userName === 'mostafabeso10@gmail.com' && 
+                        <td>{item.buyPrice}</td>
+                      }
                       <td>{item.quantity}</td>
                       <td>
                         {(userName === 'mostafabeso10@gmail.com' || userName === 'medo') && (
