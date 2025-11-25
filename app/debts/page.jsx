@@ -114,7 +114,7 @@ function Debts() {
     return () => unsubscribe();
   }, [shop]);
 
-  const handleAddProduct = async () => {
+const handleAddProduct = async () => {
   if (!form.name || !form.phone || !form.debt) {
     alert("يرجى ملء كل الحقول");
     return;
@@ -124,6 +124,7 @@ function Debts() {
   const paymentAmountNum = Number(form.paymentAmount || 0); // مبلغ السداد
   const remainingDebt = debtAmount - paymentAmountNum;
 
+  // إنشاء مستند الدين
   const newDebtDoc = await addDoc(collection(db, "debts"), {
     name: form.name,
     phone: form.phone,
@@ -138,7 +139,8 @@ function Debts() {
 
   // ===== تسجيل السداد إذا موجود
   if (paymentAmountNum > 0) {
-    await addDoc(collection(db, "debtsPayments"), {
+    // إنشاء مستند السداد وحفظ الـ id
+    const paymentDoc = await addDoc(collection(db, "debtsPayments"), {
       name: form.name,
       phone: form.phone,
       paidAmount: paymentAmountNum,
@@ -147,8 +149,10 @@ function Debts() {
       date: new Date(),
       shop: shop,
       source: form.paymentSource || "درج",
+      debtid: newDebtDoc.id  // ربط السداد بالدين الأصلي
     });
 
+    // إذا مصدر السداد خزنة، تسجيله في dailyProfit مع ربطه بالسداد
     if (form.paymentSource === "خزنة") {
       const now = new Date();
       await addDoc(collection(db, "dailyProfit"), {
@@ -156,11 +160,13 @@ function Debts() {
         date: `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`,
         shop: shop,
         totalSales: paymentAmountNum,
-        type: 'سداد'
+        type: 'سداد',
+        debtPaymentId: paymentDoc.id // ربط هذا السجل بالسداد الأصلي
       });
     }
   }
 
+  // إعادة ضبط الفورم والحالة
   setForm({
     name: "",
     phone: "",
@@ -175,27 +181,49 @@ function Debts() {
   setDetailsPayments([]);
   setDetailsAslDebt(0);
 };
-  const handleDelete = async (id, phone) => {
+
+
+const handleDelete = async (id, phone) => {
   try {
-    // حذف كل السدادات الخاصة بالعميل
+    // ===== جلب كل السدادات الخاصة بالعميل =====
     const paymentsQuery = query(
       collection(db, "debtsPayments"),
       where("phone", "==", phone),
       where("shop", "==", shop)
     );
     const paymentsSnapshot = await getDocs(paymentsQuery);
-    const deletePaymentsPromises = paymentsSnapshot.docs.map(doc => deleteDoc(doc.ref));
+
+    // ===== حذف كل السدادات مع تحديث dailyProfit إذا السداد من الخزنة =====
+    const deletePaymentsPromises = paymentsSnapshot.docs.map(async docSnap => {
+      const paymentData = docSnap.data();
+
+      // إذا السداد من الخزنة، حذف السجل المرتبط في dailyProfit
+      if (paymentData.source === "خزنة") {
+        const profitQuery = query(
+          collection(db, "dailyProfit"),
+          where("debtPaymentId", "==", docSnap.id)
+        );
+        const profitSnapshot = await getDocs(profitQuery);
+        const deleteProfitPromises = profitSnapshot.docs.map(pDoc => deleteDoc(pDoc.ref));
+        await Promise.all(deleteProfitPromises);
+      }
+
+      // حذف السداد نفسه
+      await deleteDoc(docSnap.ref);
+    });
+
     await Promise.all(deletePaymentsPromises);
 
-    // حذف الدين نفسه
+    // ===== حذف الدين نفسه =====
     await deleteDoc(doc(db, "debts", id));
 
-    alert("✅ تم حذف العميل وكل السدادات المرتبطة به");
+    alert("✅ تم حذف العميل وكل السدادات المرتبطة به، وتم تحديث dailyProfit إذا لزم الأمر");
   } catch (err) {
     console.error(err);
     alert("❌ حدث خطأ أثناء الحذف");
   }
 };
+
 const filteredCustomers = customers.filter((c) => {
   if (!c.date) return false;
 
@@ -288,19 +316,20 @@ const handleConfirmPayment = async () => {
     );
 
     // ===== تسجيل السداد في debtsPayments =====
-    await addDoc(collection(db, "debtsPayments"), {
+    const paymentDoc = await addDoc(collection(db, "debtsPayments"), {
       name: debtData.name || paymentCustomer.name || "",
       phone: debtData.phone || paymentCustomer.phone || "",
       paidAmount: paid,
       previousDebt: previousDebt,
       remainingDebt: remainingDebt,
+      debtid: paymentCustomer.id,
       date: new Date(),
       userName: localStorage.getItem('userName'),
       shop: shop,
       source: paymentSource, // درج أو خزنة
     });
 
-    // ===== إذا مصدر السداد خزنة =====
+    // ===== إذا مصدر السداد خزنة، نسجل المبلغ في dailyProfit مع ربط السداد بالـ id =====
     if (paymentSource === "خزنة") {
       const now = new Date();
       await addDoc(collection(db, "dailyProfit"), {
@@ -308,7 +337,8 @@ const handleConfirmPayment = async () => {
         date: `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`,
         shop: shop,
         totalSales: paid,
-        type: 'سداد'
+        type: 'سداد',
+        debtPaymentId: paymentDoc.id // ربط هذا السجل بالسداد الأصلي
       });
     }
 
@@ -320,6 +350,7 @@ const handleConfirmPayment = async () => {
     setProcessingPayment(false);
   }
 };
+
   // ===== Open details popup
 const openDetailsPopup = async (customer) => {
   if (!customer) return;
@@ -334,7 +365,7 @@ const openDetailsPopup = async (customer) => {
   const q = query(
     collection(db, "debtsPayments"),
     where("shop", "==", shop),
-    where("phone", "==", customer.phone)
+    where("debtid", "==", customer.id)
   );
   const snapshot = await getDocs(q);
   const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -603,7 +634,7 @@ const openDetailsPopup = async (customer) => {
           <td>{p.date?.toDate ? p.date.toDate().toLocaleDateString("ar-EG") : new Date(p.date).toLocaleDateString("ar-EG")}</td>
           <td>{p.source}</td>
           <td>
-            <button
+          <button
   onClick={async () => {
     const ok = confirm("هل تريد حذف هذا السداد واسترجاع المبلغ للدين؟");
     if (!ok) return;
@@ -621,13 +652,27 @@ const openDetailsPopup = async (customer) => {
       // حذف السداد من Firestore
       await deleteDoc(paymentRef);
 
-      // استرجاع قيمة السداد إلى الدين الأصلي
-      const q = query(collection(db, "debts"), where("phone", "==", paymentData.phone), where("shop", "==", shop));
-      const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) {
-        const debtDoc = querySnapshot.docs[0];
-        const currentDebt = Number(debtDoc.data().debt || 0);
-        await updateDoc(debtDoc.ref, { debt: currentDebt + Number(paymentData.paidAmount) });
+      // استرجاع قيمة السداد إلى الدين الأصلي مباشرة باستخدام debtid
+      const debtRef = doc(db, "debts", paymentData.debtid);
+      const debtSnap = await getDoc(debtRef);
+
+      if (debtSnap.exists()) {
+        const currentDebt = Number(debtSnap.data().debt || 0);
+        const paidAmount = Number(paymentData.paidAmount || 0);
+        await updateDoc(debtRef, { debt: currentDebt + paidAmount });
+      } else {
+        alert("❌ الدين الأصلي غير موجود");
+      }
+
+      // إذا السداد كان من الخزنة، حذف السجل المرتبط في dailyProfit
+      if (paymentData.source === "خزنة") {
+        const profitQuery = query(
+          collection(db, "dailyProfit"),
+          where("debtPaymentId", "==", p.id)
+        );
+        const profitSnapshot = await getDocs(profitQuery);
+        const deleteProfitPromises = profitSnapshot.docs.map(docSnap => deleteDoc(docSnap.ref));
+        await Promise.all(deleteProfitPromises);
       }
 
       // تحديث الحالة المحلية لإزالة الصف
@@ -650,6 +695,8 @@ const openDetailsPopup = async (customer) => {
 >
   حذف
 </button>
+
+
 
           </td>
         </tr>
