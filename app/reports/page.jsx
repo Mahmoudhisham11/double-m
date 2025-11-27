@@ -6,7 +6,6 @@
     collection,
     query,
     where,
-    onSnapshot,
     getDocs,
     addDoc,
     doc,
@@ -102,49 +101,70 @@
       return isNaN(d.getTime()) ? null : d.getTime();
     };
 
-    useEffect(() => {
-  if (!shop) return;
-  const q = query(collection(db, "deletedProducts"), where("shop", "==", shop));
-  const unsubscribe = onSnapshot(q, (snapshot) => {
-    const all = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-    setDeletedProducts(all);
-  });
-  return () => unsubscribe();
+// fetch all deletedProducts
+useEffect(() => {
+const fetchDeletedProducts = async () => {
+if (!shop) return;
+const q = query(collection(db, "deletedProducts"), where("shop", "==", shop));
+try {
+const snapshot = await getDocs(q);
+const all = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+setDeletedProducts(all);
+} catch (err) {
+console.error("Error fetching deletedProducts:", err);
+}
+};
+fetchDeletedProducts();
 }, [shop]);
 
+// fetch all reports
+useEffect(() => {
+const fetchReports = async () => {
+if (!shop) return;
+const q = query(collection(db, "reports"), where("shop", "==", shop));
+try {
+const snapshot = await getDocs(q);
+const allReports = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+setReports(allReports);
+} catch (err) {
+console.error("Error fetching reports:", err);
+}
+};
+fetchReports();
+}, [shop]);
 
-    // fetch all reports for the shop
-    useEffect(() => {
-      if (!shop) return;
-      const q = query(collection(db, "reports"), where("shop", "==", shop));
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const allReports = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-        setReports(allReports);
-      });
-      return () => unsubscribe();
-    }, [shop]);
+// fetch all masrofat
+useEffect(() => {
+const fetchMasrofat = async () => {
+if (!shop) return;
+const q = query(collection(db, "masrofat"), where("shop", "==", shop));
+try {
+const snapshot = await getDocs(q);
+const all = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+setMasrofatList(all);
+} catch (err) {
+console.error("Error fetching masrofat:", err);
+}
+};
+fetchMasrofat();
+}, [shop]);
 
-    // fetch all masrofat
-    useEffect(() => {
-      if (!shop) return;
-      const q = query(collection(db, "masrofat"), where("shop", "==", shop));
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const all = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-        setMasrofatList(all);
-      });
-      return () => unsubscribe();
-    }, [shop]);
+// fetch all returns
+useEffect(() => {
+const fetchReturns = async () => {
+if (!shop) return;
+const q = query(collection(db, "returns"), where("shop", "==", shop));
+try {
+const snapshot = await getDocs(q);
+const all = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+setReturnsList(all);
+} catch (err) {
+console.error("Error fetching returns:", err);
+}
+};
+fetchReturns();
+}, [shop]);
 
-    // fetch all returns
-    useEffect(() => {
-      if (!shop) return;
-      const q = query(collection(db, "returns"), where("shop", "==", shop));
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const all = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-        setReturnsList(all);
-      });
-      return () => unsubscribe();
-    }, [shop]);
 
     const sumColorsQty = (colors = []) => colors.reduce((s, c) => s + (Number(c.quantity || 0)), 0);
     const sumSizesQty = (sizes = []) => sizes.reduce((s, c) => s + (Number(c.quantity || 0)), 0);

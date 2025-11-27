@@ -41,26 +41,31 @@ export default function DailyReports() {
     return total;
   };
 
-  // قراءة المنتجات من Firestore
   useEffect(() => {
-    const shop = localStorage.getItem("shop");
-    if (!shop) return;
+  const fetchProducts = async () => {
+  const shop = localStorage.getItem("shop");
+  if (!shop) return;
 
-    const q = query(
-      collection(db, "lacosteProducts"),
-      where("shop", "==", shop),
-      where("type", "==", "product")
-    );
+  const q = query(
+    collection(db, "lacosteProducts"),
+    where("shop", "==", shop),
+    where("type", "==", "product")
+  );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      setProducts(data);
-      setFiltered(data);
-      setTotalQty(computeTotalProducts(data));
-    });
+  try {
+    const snapshot = await getDocs(q);
+    const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    setProducts(data);
+    setFiltered(data);
+    setTotalQty(computeTotalProducts(data));
+  } catch (err) {
+    console.error("Error fetching products:", err);
+  }
+  };
 
-    return () => unsubscribe();
+  fetchProducts();
   }, []);
+
 
   // البحث + الفلترة + تحديث الإجمالي
   useEffect(() => {

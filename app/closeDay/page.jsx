@@ -2,7 +2,7 @@
 import SideBar from "@/components/SideBar/page";
 import styles from "./styles.module.css";
 import { useEffect, useState } from "react";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { collection, query, where, onSnapshot, getDocs } from "firebase/firestore";
 import { db } from "@/app/firebase";
 
 export default function CloseDay() {
@@ -46,28 +46,57 @@ export default function CloseDay() {
 
   // load closes for a given date
   useEffect(() => {
-    const ddmmyyyy = toDDMMYYYY(dateISO);
-    if (!ddmmyyyy) return;
+  const ddmmyyyy = toDDMMYYYY(dateISO);
+  if (!ddmmyyyy) return;
 
-    setLoading(true);
+  setLoading(true);
+
+  const todayISO = new Date().toISOString().split("T")[0];
+  const todayDDMMYYYY = toDDMMYYYY(todayISO);
+
+  if (ddmmyyyy === todayDDMMYYYY) {
+    // Listener فقط للتاريخ الحالي (Realtime)
     const q = query(collection(db, "closeDayHistory"), where("closedAt", "==", ddmmyyyy));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      docs.sort((a, b) => {
-        const ta = a.closedAtTimestamp?.toDate ? a.closedAtTimestamp.toDate().getTime() : 0;
-        const tb = b.closedAtTimestamp?.toDate ? b.closedAtTimestamp.toDate().getTime() : 0;
-        return ta - tb;
-      });
-      setCloses(docs);
-      setSelectedCloseIndex(docs.length ? 0 : -1);
-      setLoading(false);
-    }, (err) => {
-      console.error("closeDayHistory onSnapshot error:", err);
-      setLoading(false);
-    });
-
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const docs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        docs.sort((a, b) => {
+          const ta = a.closedAtTimestamp?.toDate ? a.closedAtTimestamp.toDate().getTime() : 0;
+          const tb = b.closedAtTimestamp?.toDate ? b.closedAtTimestamp.toDate().getTime() : 0;
+          return ta - tb;
+        });
+        setCloses(docs);
+        setSelectedCloseIndex(docs.length ? 0 : -1);
+        setLoading(false);
+      },
+      (err) => {
+        console.error("closeDayHistory onSnapshot error:", err);
+        setLoading(false);
+      }
+    );
     return () => unsub();
-  }, [dateISO]);
+  } else {
+    // التواريخ القديمة → قراءة مرة واحدة فقط
+    getDocs(query(collection(db, "closeDayHistory"), where("closedAt", "==", ddmmyyyy)))
+      .then((snapshot) => {
+        const docs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        docs.sort((a, b) => {
+          const ta = a.closedAtTimestamp?.toDate ? a.closedAtTimestamp.toDate().getTime() : 0;
+          const tb = b.closedAtTimestamp?.toDate ? b.closedAtTimestamp.toDate().getTime() : 0;
+          return ta - tb;
+        });
+        setCloses(docs);
+        setSelectedCloseIndex(docs.length ? 0 : -1);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("closeDayHistory getDocs error:", err);
+        setLoading(false);
+      });
+  }
+}, [dateISO]);
+
 
   const selectedClose = closes[selectedCloseIndex] || null;
 

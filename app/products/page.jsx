@@ -95,114 +95,109 @@ function Products() {
   }, []);
 
 useEffect(() => {
-  const shop = localStorage.getItem("shop");
-  if (!shop) return;
+const fetchProducts = async () => {
+const shop = localStorage.getItem("shop");
+if (!shop) return;
 
-  const q = query(
-    collection(db, "lacosteProducts"),
-    where("shop", "==", shop),
-    where("type", "==", "product")
-  );
+const q = query(
+  collection(db, "lacosteProducts"),
+  where("shop", "==", shop),
+  where("type", "==", "product")
+);
 
-  const unsubscribe = onSnapshot(q, (snapshot) => {
-    const data = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+try {
+  const snapshot = await getDocs(q);
+  const data = snapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  }));
 
-    setProducts(data);
+  setProducts(data);
 
-    // ------------------------------------------------------------
-    // 1) نبدأ بالفلترة
-    // ------------------------------------------------------------
+  // ------------------------------------------------------------
+  // 1) الفلترة
+  // ------------------------------------------------------------
+  let filtered = data;
 
-    let filtered = data;
+  // 🔍 فلترة بالكود
+  if (searchCode.trim()) {
+    filtered = filtered.filter((p) =>
+      p.code?.toString().toLowerCase().includes(searchCode.trim().toLowerCase())
+    );
+  }
 
-    // 🔍 فلترة بالكود
-    if (searchCode.trim()) {
-      filtered = filtered.filter((p) =>
-        p.code?.toString().toLowerCase().includes(searchCode.trim().toLowerCase())
-      );
-    }
+  // 📅 فلترة بالتاريخ
+  if (searchDate) {
+    const selected = new Date(searchDate).toLocaleDateString("ar-EG");
+    filtered = filtered.filter((p) => {
+      if (!p.date?.toDate) return false;
+      const productDate = p.date.toDate().toLocaleDateString("ar-EG");
+      return productDate === selected;
+    });
+  }
 
-    // 📅 فلترة بالتاريخ
-    if (searchDate) {
-      const selected = new Date(searchDate).toLocaleDateString("ar-EG");
+  setFilteredProducts(filtered);
 
-      filtered = filtered.filter((p) => {
-        if (!p.date?.toDate) return false;
-        const productDate = p.date.toDate().toLocaleDateString("ar-EG");
-        return productDate === selected;
+  // ------------------------------------------------------------
+  // 2) حساب إجمالي الكميات
+  // ------------------------------------------------------------
+  let totalQty = 0;
+  filtered.forEach((product) => {
+    let productQty = 0;
+    if (product.colors && product.colors.length) {
+      product.colors.forEach((c) => {
+        if (c.sizes && c.sizes.length) {
+          c.sizes.forEach((sz) => {
+            productQty += Number(sz.qty || 0);
+          });
+        } else if (c.quantity) {
+          productQty += Number(c.quantity || 0);
+        }
       });
+    } else {
+      productQty = Number(product.quantity || 0);
+    }
+    totalQty += productQty;
+  });
+  setTotalProducts(totalQty);
+
+  // ------------------------------------------------------------
+  // 3) حساب الإجماليات
+  // ------------------------------------------------------------
+  let totalBuyAmount = 0;
+  let totalSellAmount = 0;
+  let finalTotalAmount = 0;
+
+  filtered.forEach((product) => {
+    let productQty = 0;
+    if (product.colors && product.colors.length) {
+      product.colors.forEach((c) => {
+        if (c.sizes && c.sizes.length) {
+          c.sizes.forEach((sz) => {
+            productQty += Number(sz.qty || 0);
+          });
+        } else if (c.quantity) {
+          productQty += Number(c.quantity || 0);
+        }
+      });
+    } else {
+      productQty = Number(product.quantity || 0);
     }
 
-    // حفظ المنتجات بعد الفلترة
-    setFilteredProducts(filtered);
-
-    // ------------------------------------------------------------
-    // 2) حساب إجمالي الكميات
-    // ------------------------------------------------------------
-
-    let totalQty = 0;
-
-    filtered.forEach((product) => {
-      let productQty = 0;
-
-      if (product.colors && product.colors.length) {
-        product.colors.forEach((c) => {
-          if (c.sizes && c.sizes.length) {
-            c.sizes.forEach((sz) => {
-              productQty += Number(sz.qty || 0);
-            });
-          } else if (c.quantity) {
-            productQty += Number(c.quantity || 0);
-          }
-        });
-      } else {
-        productQty = Number(product.quantity || 0);
-      }
-
-      totalQty += productQty;
-    });
-
-    setTotalProducts(totalQty);
-
-    // ------------------------------------------------------------
-    // 3) حساب الإجماليات
-    // ------------------------------------------------------------
-
-    let totalBuyAmount = 0;
-    let totalSellAmount = 0;
-    let finalTotalAmount = 0;
-
-    filtered.forEach((product) => {
-      let productQty = 0;
-
-      if (product.colors && product.colors.length) {
-        product.colors.forEach((c) => {
-          if (c.sizes && c.sizes.length) {
-            c.sizes.forEach((sz) => {
-              productQty += Number(sz.qty || 0);
-            });
-          } else if (c.quantity) {
-            productQty += Number(c.quantity || 0);
-          }
-        });
-      } else {
-        productQty = Number(product.quantity || 0);
-      }
-
-      totalBuyAmount += (product.buyPrice || 0) * productQty;
-      totalSellAmount += (product.sellPrice || 0) * productQty;
-      finalTotalAmount += (product.finalPrice || 0) * productQty;
-    });
-
-    setTotalBuy(totalBuyAmount);
-    setTotalSell(totalSellAmount);
-    setFinalTotal(finalTotalAmount);
+    totalBuyAmount += (product.buyPrice || 0) * productQty;
+    totalSellAmount += (product.sellPrice || 0) * productQty;
+    finalTotalAmount += (product.finalPrice || 0) * productQty;
   });
 
-  return () => unsubscribe();
+  setTotalBuy(totalBuyAmount);
+  setTotalSell(totalSellAmount);
+  setFinalTotal(finalTotalAmount);
+} catch (err) {
+  console.error("Error fetching products:", err);
+}
+};
+
+fetchProducts();
 }, [searchCode, searchDate]);
 
 

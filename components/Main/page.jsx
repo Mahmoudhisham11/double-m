@@ -5,8 +5,6 @@ import { useState, useEffect, useRef } from "react";
 import { IoMdSearch } from "react-icons/io";
 import { FaRegTrashAlt } from "react-icons/fa";
 import { IoIosCloseCircle } from "react-icons/io";
-import { FaUser } from "react-icons/fa";
-import { FaPhone } from "react-icons/fa";
 import { FaBars } from "react-icons/fa6";
 import {
   collection, query, where, onSnapshot, addDoc, updateDoc, doc, deleteDoc, getDocs, getDoc, writeBatch,Timestamp,runTransaction 
@@ -254,18 +252,6 @@ const addToCartAndReserve = async (product, options = {}) => {
   // إضافة المنتج للسلة فقط
   await addDoc(collection(db, "cart"), cartData);
 };
-
-  // original handleAddToCart replaced by openVariant logic:
-  const handleAddToCart = async (product) => {
-    // if product has colors or sizes -> open variant popup
-    if ((product.colors && product.colors.length > 0) || (product.sizes && product.sizes.length > 0)) {
-      openVariantForProduct(product);
-    } else {
-      // no variants -> add normally with quantity 1 and decrement total quantity field
-      await addToCartAndReserve(product, { quantity: 1 });
-      setSearchCode("");
-    }
-  };
 
   // -------------------------
   // quantity change and delete on cart
