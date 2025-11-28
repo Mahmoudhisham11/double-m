@@ -861,14 +861,23 @@ useEffect(() => {
   if (!invoiceDiv) return;
 
   const printWindow = window.open('', '', 'width=800,height=600');
-  printWindow.document.write(`<html><head><title>فاتورة</title></head><body>`);
+
+  printWindow.document.write(`<html><head><title>فاتورة</title>`);
+
+  // 🟢 ربط ملف CSS خارجي للطباعة
+  printWindow.document.write(`<link rel="stylesheet" href="/print.css" />`);
+
+  printWindow.document.write(`</head><body>`);
   printWindow.document.write(invoiceDiv.innerHTML);
   printWindow.document.write(`</body></html>`);
+
   printWindow.document.close();
   printWindow.focus();
   printWindow.print();
   printWindow.close();
 }, [invoice]);
+
+
 
 
   const handleCloseDay = async () => {
