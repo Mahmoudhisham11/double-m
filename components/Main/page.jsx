@@ -835,7 +835,6 @@ const handlePrintInvoice = () => {
 
     // ✅ تعيين الفاتورة للطباعة وطباعة مباشرة
     setInvoice(saleData);
-    handlePrintInvoice();
 
     alert("تم حفظ التقرير بنجاح");
 
@@ -853,11 +852,22 @@ const handlePrintInvoice = () => {
   }
 };
 
-    useEffect(() => {
-  if (invoice) {
-    handlePrintInvoice();
-  }
+useEffect(() => {
+  if (!invoice) return;
+
+  const invoiceDiv = document.getElementById("printInvoice");
+  if (!invoiceDiv) return;
+
+  const printWindow = window.open('', '', 'width=800,height=600');
+  printWindow.document.write(`<html><head><title>فاتورة</title></head><body>`);
+  printWindow.document.write(invoiceDiv.innerHTML);
+  printWindow.document.write(`</body></html>`);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+  printWindow.close();
 }, [invoice]);
+
 
   const handleCloseDay = async () => {
     // 🟡 إضافة تأكيد قبل التنفيذ
