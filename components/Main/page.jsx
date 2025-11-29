@@ -662,20 +662,6 @@ const handleSaveNewPrice = () => {
   setProductToEdit(null);
 };
 
-const handlePrintInvoice = () => {
-  const invoiceDiv = document.getElementById("printInvoice");
-  if (!invoiceDiv) return alert("لا توجد فاتورة للطباعة");
-
-  const printContents = invoiceDiv.innerHTML;
-  const originalContents = document.body.innerHTML;
-
-  document.body.innerHTML = printContents;
-  window.print();
-  document.body.innerHTML = originalContents;
-};
-
-
-
   // -------------------------
   // handleSaveReport: now we trust that stock was decremented when adding; still we verify availability as safety
   // -------------------------
@@ -901,7 +887,10 @@ useEffect(() => {
   printWindow.document.close();
   printWindow.focus();
   printWindow.print();
+  printWindow.onafterprint = () => {
   printWindow.close();
+};
+
 }, [invoice]);
 
 
