@@ -57,42 +57,78 @@ function Main() {
   const shop = typeof window !== "undefined" ? localStorage.getItem("shop") : "";
   const userName = typeof window !== "undefined" ? localStorage.getItem("userName") : "";
 
-    useEffect(() => {
-      if (!shop) return;
-      const q = query(collection(db, "dailySales"), where("shop", "==", shop));
-      const unsubscribe = onSnapshot(q, snapshot => {
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setDailySales(data);
-      });
-      return () => unsubscribe();
-    }, [shop]);
-
   useEffect(() => {
-    const fetchMasrofat = async () => {
-      if (!shop) return;
+    if (!shop) return;
+
+    const fetchDailySales = async () => {
       try {
-        const q = query(collection(db, "masrofat"), where("shop", "==", shop));
+        const q = query(
+          collection(db, "dailySales"),
+          where("shop", "==", shop),
+          // orderBy("timestamp", "desc"), // لو عندك حقل التاريخ
+          // limit(50) // ممكن تحدد عدد العمليات اللي نجيبها لتقليل الـ reads
+        );
         const snapshot = await getDocs(q);
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setMasrofat(data);
+        setDailySales(data);
       } catch (error) {
-        console.error("Error fetching masrofat:", error);
+        console.error("Error fetching dailySales:", error);
       }
     };
 
-    fetchMasrofat();
+    fetchDailySales();
   }, [shop]);
 
-  useEffect(() => {
-    if (!shop) return;
-    const fetchProducts = async () => {
-      const q = query(collection(db, "lacosteProducts"), where("shop", "==", shop));
+
+// Masrofat - تحسين
+useEffect(() => {
+  if (!shop) return;
+
+  const fetchMasrofat = async () => {
+    try {
+      const q = query(
+        collection(db, "masrofat"),
+        where("shop", "==", shop),
+        // orderBy("date", "desc"), // لو عندك حقل التاريخ
+        // limit(50) // تحديد عدد المصروفات لتقليل الـ reads
+      );
+
+      const snapshot = await getDocs(q);
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setMasrofat(data);
+    } catch (error) {
+      console.error("Error fetching masrofat:", error);
+    }
+  };
+
+  fetchMasrofat();
+}, [shop]);
+
+
+// Products - تحسين
+useEffect(() => {
+  if (!shop) return;
+
+  const fetchProducts = async () => {
+    try {
+      const q = query(
+        collection(db, "lacosteProducts"),
+        where("shop", "==", shop),
+        // orderBy("name"), // لو تحب ترتيب المنتجات حسب الاسم
+        // limit(100) // لو عندك منتجات كتير، نجيب جزء فقط لتقليل الـ reads
+      );
+
       const snapshot = await getDocs(q);
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setProducts(data);
-    };
-    fetchProducts();
-  }, [shop]);
+    } catch (error) {
+      console.error("Error fetching products:", error);
+    }
+  };
+
+  fetchProducts();
+}, [shop]);
+
 
 
   useEffect(() => {
@@ -122,21 +158,30 @@ function Main() {
       return () => unsubscribe();
     }
   }, []);
-  useEffect(() => {
-    const fetchEmployees = async () => {
-      if (!shop) return;
-      try {
-        const q = query(collection(db, 'employees'), where('shop', '==', shop));
-        const snapshot = await getDocs(q);
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setEmployess(data);
-      } catch (error) {
-        console.error("Error fetching employees:", error);
-      }
-    };
+  // Employees - تحسين
+useEffect(() => {
+  if (!shop) return;
 
-    fetchEmployees();
-  }, [shop]);
+  const fetchEmployees = async () => {
+    try {
+      const q = query(
+        collection(db, 'employees'),
+        where('shop', '==', shop),
+        // orderBy('name'), // لو حابب ترتيب الموظفين
+        // limit(50) // لو الـ collection كبيرة، نجيب subset فقط
+      );
+
+      const snapshot = await getDocs(q);
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setEmployess(data);
+    } catch (error) {
+      console.error("Error fetching employees:", error);
+    }
+  };
+
+  fetchEmployees();
+}, [shop]);
+
 
 
   // دالة لتبديل حالة الإخفاء
