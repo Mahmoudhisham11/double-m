@@ -58,26 +58,23 @@ function Main() {
   const userName = typeof window !== "undefined" ? localStorage.getItem("userName") : "";
 
   useEffect(() => {
-    if (!shop) return;
+  if (!shop) return;
 
-    const fetchDailySales = async () => {
-      try {
-        const q = query(
-          collection(db, "dailySales"),
-          where("shop", "==", shop),
-          // orderBy("timestamp", "desc"), // لو عندك حقل التاريخ
-          // limit(50) // ممكن تحدد عدد العمليات اللي نجيبها لتقليل الـ reads
-        );
-        const snapshot = await getDocs(q);
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setDailySales(data);
-      } catch (error) {
-        console.error("Error fetching dailySales:", error);
-      }
-    };
+  const q = query(
+    collection(db, "dailySales"),
+    where("shop", "==", shop)
+  );
 
-    fetchDailySales();
-  }, [shop]);
+  const unsubscribe = onSnapshot(q, (snapshot) => {
+    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setDailySales(data);
+  }, (error) => {
+    console.error("Error fetching dailySales:", error);
+  });
+
+  return () => unsubscribe(); // لإلغاء الاشتراك عند تغيير shop أو تفكيك المكون
+}, [shop]);
+
 
 
 // Masrofat - تحسين
