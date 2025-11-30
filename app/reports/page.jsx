@@ -627,6 +627,7 @@ fetchReturns();
               </>
             ) : (
               <>
+                <th>الكود</th>
                 <th>اسم العميل</th>
                 <th>رقم الهاتف</th>
                 <th>عدد العناصر</th>
@@ -702,6 +703,7 @@ fetchReturns();
               const total = Number(report.total ?? report.subtotal ?? 0);
               return (
                 <tr key={report.id}>
+                  <td>{report.code || "-"}</td>
                   <td>{report.clientName || "-"}</td>
                   <td>{report.phone || "-"}</td>
                   <td>{report.cart?.length || 0}</td>
