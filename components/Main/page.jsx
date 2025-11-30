@@ -963,36 +963,40 @@ const handlePrintInvoiceByNumber = async () => {
   const invoiceNumber = prompt("من فضلك أدخل رقم الفاتورة للطباعة:");
   if (!invoiceNumber) return;
 
-  try {
-    const q = query(
-      collection(db, "dailySales"),
-      where("invoiceNumber", "==", Number(invoiceNumber))
-    );
-    const snapshot = await getDocs(q);
-    if (snapshot.empty) {
-      alert("⚠️ لم يتم العثور على الفاتورة بهذا الرقم!");
-      return;
-    }
-
-    const invoiceData = snapshot.docs[0].data();
-    printInvoiceByData(invoiceData); // استدعاء دالة الطباعة
-  } catch (error) {
-    console.error("خطأ أثناء جلب الفاتورة:", error);
-    alert("❌ حدث خطأ أثناء جلب الفاتورة للطباعة");
-  }
-};
-
-// دالة جديدة خاصة بالزر الجديد
-const printInvoiceByData = (invoice) => {
-  if (!invoice) return;
-
+  // 🔹 فتح النافذة فور الضغط
   const printWindow = window.open('', '', 'width=800,height=600');
   if (!printWindow) {
     alert("يرجى السماح بفتح النوافذ المنبثقة (Popups).");
     return;
   }
 
- printWindow.document.write(`
+  try {
+    const q = query(
+      collection(db, "dailySales"),
+      where("invoiceNumber", "==", Number(invoiceNumber))
+    );
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      alert("⚠️ لم يتم العثور على الفاتورة بهذا الرقم!");
+      printWindow.close();
+      return;
+    }
+
+    const invoiceData = snapshot.docs[0].data();
+    printInvoiceByData(invoiceData, printWindow); // تمرير المرجع
+  } catch (error) {
+    console.error("خطأ أثناء جلب الفاتورة:", error);
+    alert("❌ حدث خطأ أثناء جلب الفاتورة للطباعة");
+    printWindow.close();
+  }
+};
+
+// تعديل الدالة لقبول printWindow
+const printInvoiceByData = (invoice, printWindow) => {
+  if (!invoice || !printWindow) return;
+
+   printWindow.document.write(`
 <html>
 <head>
   <title>فاتورة</title>
@@ -1051,11 +1055,10 @@ const printInvoiceByData = (invoice) => {
 </body>
 </html>
   `);
-
-
   printWindow.document.close();
   printWindow.focus();
 };
+
 
 
 
