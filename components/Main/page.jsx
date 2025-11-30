@@ -889,9 +889,18 @@ const handleSaveNewPrice = () => {
 useEffect(() => {
   if (!invoice) return;
 
-const printWindow = window.open('', '', 'width=800,height=600');
+  const printWindow = window.open('', '', 'width=800,height=600');
 
-printWindow.document.write(`
+  // معالجة خطأ عدم فتح نافذة الطباعة
+  if (!printWindow) {
+    alert("يرجى السماح بفتح النوافذ المنبثقة (Popups) في المتصفح.");
+    return;
+  }
+
+  // ننتظر شوية لحد ما نافذة الطباعة تتهيأ
+  setTimeout(() => {
+    try {
+      printWindow.document.write(`
 <html>
 <head>
   <title>فاتورة</title>
@@ -909,7 +918,9 @@ printWindow.document.write(`
 <body>
   <div class="invoice">
     <div style="text-align:center;">
-      <img src="${window.location.origin}/images/logo.png" style="width:200px;height:120px;object-fit:cover;" />
+      <img src="${window.location.origin}/images/logo.png" 
+        onload="window.print()" 
+        style="width:200px;height:120px;object-fit:cover;" />
       <h3>بوابة الالف مسكن</h3>
     </div>
     <h3 style="text-align:center;">فاتورة مبيعات</h3>
@@ -953,15 +964,25 @@ printWindow.document.write(`
   </div>
 </body>
 </html>
-`);
+      `);
 
-printWindow.document.close();
-printWindow.focus();
-printWindow.print();
-printWindow.onafterprint = () => printWindow.close();
+      printWindow.document.close();
+      printWindow.focus();
 
+      printWindow.print();
+
+      printWindow.onafterprint = () => {
+        printWindow.close();
+      };
+
+    } catch (err) {
+      console.error("Print error:", err);
+    }
+
+  }, 50); // تأخير خفيف جداً
 
 }, [invoice]);
+
 
 
 
