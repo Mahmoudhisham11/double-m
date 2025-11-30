@@ -903,7 +903,7 @@ const handlePrintInvoice = (invoice) => {
   <title>فاتورة</title>
   <style>
     body { font-family: Arial; direction: rtl; }
-    .invoice { max-width: 384px; margin: auto; padding: 5px; font-size:12px; }
+    .invoice { max-width: 100%; margin: auto; padding: 5px; font-size:12px; }
     table { width:100%; border-collapse: collapse; }
     th, td { border:1px solid black; padding:2px 4px; text-align:right; font-size:12px; }
     tfoot td { font-weight:bold; border-top:2px solid black; }
