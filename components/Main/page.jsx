@@ -872,6 +872,7 @@ const handleSaveNewPrice = () => {
     setInvoice(saleData);
 
     alert("تم حفظ التقرير بنجاح");
+    handlePrintInvoice(saleData);
 
     setAppliedDiscount(0);
     setDiscountInput(0);
@@ -886,102 +887,32 @@ const handleSaveNewPrice = () => {
     setShowClientPopup(false);
   }
 };
-useEffect(() => {
+
+const handlePrintInvoice = (invoice) => {
   if (!invoice) return;
 
   const printWindow = window.open('', '', 'width=800,height=600');
-
-  // معالجة خطأ عدم فتح نافذة الطباعة
   if (!printWindow) {
-    alert("يرجى السماح بفتح النوافذ المنبثقة (Popups) في المتصفح.");
+    alert("يرجى السماح بفتح النوافذ المنبثقة (Popups).");
     return;
   }
 
-  // ننتظر شوية لحد ما نافذة الطباعة تتهيأ
-  setTimeout(() => {
-    try {
-      printWindow.document.write(`
+  printWindow.document.write(`
 <html>
 <head>
   <title>فاتورة</title>
   <style>
-    .resete {
-        background: none;
-        width: 100%;
-        height: auto; /* الطول يتحدد حسب محتوى الفاتورة */
-        min-height: 50px; /* طول أقل للفاتورة الصغيرة */
-        max-width: 384px; /* عرض ثابت حسب طابعة 80mm */
-        margin: 0;
-        padding: 0;
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-start; /* يبدأ من الأعلى */
-        align-items: center;
-    }
-        .title h2 {
-    font-size: 28px;
-}
-
-
-    .btn, .btnBack {
-        display: none; /* إخفاء الأزرار */
-    }
-
-    .invoice {
-        max-width: 384px;
-        width: 100%;
-        height: auto;
-        padding: 5px;
-        font-size: 12px;
-        box-sizing: border-box;
-        border: none;
-        display: flex;
-        flex-direction: column;
-        direction: rtl;
-        justify-content: flex-start; /* العناصر قريبة من بعض */
-    }
-
-    .invoice h3 {
-        margin: 2px 0;
-        font-size: 14px;
-    }
-
-    .invoice p {
-        font-size: 12px;
-    }
-
-    .invoice table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 12px;
-    }
-
-    .invoice th, .invoice td {
-        border: 1px solid black;
-        padding: 1px 3px;
-        text-align: right;
-        font-size: 12px;
-    }
-
-    .invoice tfoot td {
-        border-top: 2px solid black;
-        font-weight: bold;
-        font-size: 12px;
-    }
-
-    .footer {
-        text-align: center;
-        font-size: 12px;
-    }
+    body { font-family: Arial; direction: rtl; }
+    .invoice { max-width: 384px; margin: auto; padding: 5px; font-size:12px; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { border:1px solid black; padding:2px 4px; text-align:right; font-size:12px; }
+    tfoot td { font-weight:bold; border-top:2px solid black; }
   </style>
 </head>
 <body>
-      <div class="resete">
-          <div class="invoice">
+  <div class="invoice">
     <div style="text-align:center;">
-      <img src="${window.location.origin}/images/logo.png" 
-        onload="window.print()" 
-        style="width:200px;height:120px;object-fit:cover;" />
+      <img id="invoiceLogo" src="${window.location.origin}/images/logo.png" style="width:200px;height:120px;object-fit:cover;" />
       <h3>بوابة الالف مسكن</h3>
     </div>
     <h3 style="text-align:center;">فاتورة مبيعات</h3>
@@ -992,10 +923,7 @@ useEffect(() => {
     <table>
       <thead>
         <tr>
-          <th>الكود</th>
-          <th>المنتج</th>
-          <th>الكمية</th>
-          <th>السعر</th>
+          <th>الكود</th><th>المنتج</th><th>الكمية</th><th>السعر</th>
         </tr>
       </thead>
       <tbody>
@@ -1005,46 +933,192 @@ useEffect(() => {
             <td>${item.name}</td>
             <td>${item.quantity}</td>
             <td>${item.total} ج.م</td>
-          </tr>
-        `).join('')}
+          </tr>`).join('')}
       </tbody>
       <tfoot>
-        <tr>
-          <td colspan="4">الإجمالي: ${invoice.total} ج.م</td>
-        </tr>
+        <tr><td colspan="4">الإجمالي: ${invoice.total} ج.م</td></tr>
       </tfoot>
     </table>
-    <div>
-      <p>عدد الاصناف: ${invoice.cart.length}</p>
-      <p>العنوان: 1 جول جمال ال الف مسكن</p>
-      <p style="text-align:center;margin-top:5px;">شكراً لتعاملكم معنا!</p>
-    </div>
-    <div class="footer">
-      <strong>تم التوجيه بواسطة: Devoria</strong>
-    </div>
+    <p>عدد الاصناف: ${invoice.cart.length}</p>
+    <p style="text-align:center;margin-top:5px;">شكراً لتعاملكم معنا!</p>
+    <div style="text-align:center;"><strong>تم التوجيه بواسطة: Devoria</strong></div>
   </div>
-      </div>
+
+  <script>
+    const logo = document.getElementById('invoiceLogo');
+    if (logo.complete) {
+      window.print();
+    } else {
+      logo.onload = () => window.print();
+    }
+    window.onafterprint = () => window.close();
+  </script>
 </body>
 </html>
-      `);
+  `);
 
-      printWindow.document.close();
-      printWindow.focus();
+  printWindow.document.close();
+  printWindow.focus();
+};
 
-      printWindow.print();
+// useEffect(() => {
+//   if (!invoice) return;
 
-      printWindow.onafterprint = () => {
-        printWindow.close();
-      };
+//   const printWindow = window.open('', '', 'width=800,height=600');
 
-    } catch (err) {
-      console.error("Print error:", err);
-    }
+//   // معالجة خطأ عدم فتح نافذة الطباعة
+//   if (!printWindow) {
+//     alert("يرجى السماح بفتح النوافذ المنبثقة (Popups) في المتصفح.");
+//     return;
+//   }
 
-  }, 50); // تأخير خفيف جداً
+//   // ننتظر شوية لحد ما نافذة الطباعة تتهيأ
+//   setTimeout(() => {
+//     try {
+//       printWindow.document.write(`
+// <html>
+// <head>
+//   <title>فاتورة</title>
+//   <style>
+//     .resete {
+//         background: none;
+//         width: 100%;
+//         height: auto; /* الطول يتحدد حسب محتوى الفاتورة */
+//         min-height: 50px; /* طول أقل للفاتورة الصغيرة */
+//         max-width: 384px; /* عرض ثابت حسب طابعة 80mm */
+//         margin: 0;
+//         padding: 0;
+//         display: flex;
+//         flex-direction: column;
+//         justify-content: flex-start; /* يبدأ من الأعلى */
+//         align-items: center;
+//     }
+//         .title h2 {
+//     font-size: 28px;
+// }
 
-}, [invoice]);
 
+//     .btn, .btnBack {
+//         display: none; /* إخفاء الأزرار */
+//     }
+
+//     .invoice {
+//         max-width: 384px;
+//         width: 100%;
+//         height: auto;
+//         padding: 5px;
+//         font-size: 12px;
+//         box-sizing: border-box;
+//         border: none;
+//         display: flex;
+//         flex-direction: column;
+//         direction: rtl;
+//         justify-content: flex-start; /* العناصر قريبة من بعض */
+//     }
+
+//     .invoice h3 {
+//         margin: 2px 0;
+//         font-size: 14px;
+//     }
+
+//     .invoice p {
+//         font-size: 12px;
+//     }
+
+//     .invoice table {
+//         width: 100%;
+//         border-collapse: collapse;
+//         font-size: 12px;
+//     }
+
+//     .invoice th, .invoice td {
+//         border: 1px solid black;
+//         padding: 1px 3px;
+//         text-align: right;
+//         font-size: 12px;
+//     }
+
+//     .invoice tfoot td {
+//         border-top: 2px solid black;
+//         font-weight: bold;
+//         font-size: 12px;
+//     }
+
+//     .footer {
+//         text-align: center;
+//         font-size: 12px;
+//     }
+//   </style>
+// </head>
+// <body>
+//       <div class="resete">
+//           <div class="invoice">
+//     <div style="text-align:center;">
+//       <img src="${window.location.origin}/images/logo.png" 
+//         onload="window.print()" 
+//         style="width:200px;height:120px;object-fit:cover;" />
+//       <h3>بوابة الالف مسكن</h3>
+//     </div>
+//     <h3 style="text-align:center;">فاتورة مبيعات</h3>
+//     <p><strong>التاريخ:</strong> ${new Date(invoice.date).toLocaleDateString('ar-EG')}</p>
+//     <p><strong>رقم الفاتورة:</strong> ${invoice.invoiceNumber}</p>
+//     <p><strong>العميل:</strong> ${invoice.clientName}</p>
+//     <p><strong>الهاتف:</strong> ${invoice.phone}</p>
+//     <table>
+//       <thead>
+//         <tr>
+//           <th>الكود</th>
+//           <th>المنتج</th>
+//           <th>الكمية</th>
+//           <th>السعر</th>
+//         </tr>
+//       </thead>
+//       <tbody>
+//         ${invoice.cart.map(item => `
+//           <tr>
+//             <td>${item.code}</td>
+//             <td>${item.name}</td>
+//             <td>${item.quantity}</td>
+//             <td>${item.total} ج.م</td>
+//           </tr>
+//         `).join('')}
+//       </tbody>
+//       <tfoot>
+//         <tr>
+//           <td colspan="4">الإجمالي: ${invoice.total} ج.م</td>
+//         </tr>
+//       </tfoot>
+//     </table>
+//     <div>
+//       <p>عدد الاصناف: ${invoice.cart.length}</p>
+//       <p>العنوان: 1 جول جمال ال الف مسكن</p>
+//       <p style="text-align:center;margin-top:5px;">شكراً لتعاملكم معنا!</p>
+//     </div>
+//     <div class="footer">
+//       <strong>تم التوجيه بواسطة: Devoria</strong>
+//     </div>
+//   </div>
+//       </div>
+// </body>
+// </html>
+//       `);
+
+//       printWindow.document.close();
+//       printWindow.focus();
+
+//       printWindow.print();
+
+//       printWindow.onafterprint = () => {
+//         printWindow.close();
+//       };
+
+//     } catch (err) {
+//       console.error("Print error:", err);
+//     }
+
+//   }, 50); // تأخير خفيف جداً
+
+// }, [invoice]);
 
 
 
