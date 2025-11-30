@@ -905,7 +905,6 @@ useEffect(() => {
 <head>
   <title>فاتورة</title>
   <style>
-        
     .resete {
         background: none;
         width: 100%;
@@ -919,6 +918,10 @@ useEffect(() => {
         justify-content: flex-start; /* يبدأ من الأعلى */
         align-items: center;
     }
+        .title h2 {
+    font-size: 28px;
+}
+
 
     .btn, .btnBack {
         display: none; /* إخفاء الأزرار */
@@ -934,6 +937,7 @@ useEffect(() => {
         border: none;
         display: flex;
         flex-direction: column;
+        direction: rtl;
         justify-content: flex-start; /* العناصر قريبة من بعض */
     }
 
