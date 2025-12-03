@@ -965,6 +965,14 @@ function Main() {
         0
       );
 
+      // 💰 حساب إجمالي الربح
+      const profit = cart.reduce(
+        (sum, item) =>
+          sum +
+          ((item.sellPrice || 0) - (item.buyPrice || 0)) * (item.quantity || 0),
+        0
+      );
+
       // 🗂️ تحضير بيانات الفاتورة
       const saleData = {
         invoiceNumber,
@@ -973,7 +981,9 @@ function Main() {
         phone,
         date: new Date(),
         shop,
-        total, // ← إجمالي الفاتورة
+        total,
+        profit,
+        employee: selectedEmployee || "غير محدد", // ← تم إضافة اسم الموظف هنا
       };
 
       // 🔥 حفظ الفاتورة
@@ -986,7 +996,7 @@ function Main() {
       setInvoice(saleData);
       handlePrintInvoice(saleData);
 
-      // 🧹 تفريغ السلة
+      // 🧹 تفريغ السلة من Firestore
       const qCart = query(collection(db, "cart"), where("shop", "==", shop));
       const cartSnapshot = await getDocs(qCart);
       for (const docSnap of cartSnapshot.docs) await deleteDoc(docSnap.ref);
