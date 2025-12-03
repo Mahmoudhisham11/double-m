@@ -965,6 +965,7 @@ const handleSaveReport = async () => {
 
     // 🔥 حفظ الفاتورة
     await addDoc(collection(db, "dailySales"), saleData);
+    await updateStock(cart);
 
     // 🧹 تفريغ السلة
     const qCart = query(collection(db, "cart"), where("shop", "==", shop));
@@ -981,23 +982,23 @@ const handleSaveReport = async () => {
   }
 };
 
-
-// دالة منفصلة لتحديث المخزن
+// دالة لتحديث المخزن بعد البيع
 const updateStock = async (cartItems) => {
+  if (!Array.isArray(cartItems) || cartItems.length === 0) return;
+
   for (const item of cartItems) {
-    if (!item.originalProductId) continue;
+    if (!item.originalProductId) continue; // لو المنتج مش مرتبط بالمخزن
 
     const prodRef = doc(db, "lacosteProducts", item.originalProductId);
     const prodSnap = await getDoc(prodRef);
     if (!prodSnap.exists()) continue;
 
     const currentQty = prodSnap.data().quantity || 0;
-    await updateDoc(prodRef, { quantity: Math.max(0, currentQty - item.quantity) });
+    const newQty = Math.max(0, currentQty - item.quantity); // خصم الكمية المباعة
+
+    await updateDoc(prodRef, { quantity: newQty });
   }
 };
-useEffect(() => {
-  updateStock()
-}, [dailySales])
 
 
 
