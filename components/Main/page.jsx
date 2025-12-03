@@ -937,38 +937,50 @@ const handleSaveReport = async () => {
   const clientName = nameRef.current?.value || "";
   const phone = phoneRef.current?.value || "";
 
-  if (cart.length === 0) {
+  if (!Array.isArray(cart) || cart.length === 0) {
     alert("يرجى إضافة منتجات إلى السلة قبل الحفظ");
     setIsSaving(false);
     return;
   }
 
-  // 🔢 رقم الفاتورة
-  const counterRef = doc(db, "counters", "invoiceCounter");
-  const invoiceNumber = await runTransaction(db, async (transaction) => {
-    const counterSnap = await transaction.get(counterRef);
+  try {
+    // 🔢 جلب آخر رقم فاتورة بدون transaction
+    const counterRef = doc(db, "counters", "invoiceCounter");
+    const counterSnap = await getDoc(counterRef);
     const currentNumber = counterSnap.exists() ? counterSnap.data().lastInvoiceNumber || 0 : 0;
-    const newNumber = currentNumber + 1;
-    transaction.set(counterRef, { lastInvoiceNumber: newNumber }, { merge: true });
-    return newNumber;
-  });
+    const invoiceNumber = currentNumber + 1;
 
-  // 🗂️ حفظ البيعة
-  const saleData = {
-    invoiceNumber,
-    cart,
-    clientName,
-    phone,
-    date: new Date(),
-    shop,
-  };
+    // تحديث آخر رقم فاتورة
+    await setDoc(counterRef, { lastInvoiceNumber: invoiceNumber }, { merge: true });
 
-  await addDoc(collection(db, "dailySales"), saleData);
+    // 🗂️ تحضير بيانات الفاتورة
+    const saleData = {
+      invoiceNumber,
+      cart,
+      clientName,
+      phone,
+      date: new Date(),
+      shop,
+    };
 
-  alert("✅ تم حفظ البيعة بنجاح");
-  setCart([]);
-  setIsSaving(false);
+    // 🔥 حفظ الفاتورة
+    await addDoc(collection(db, "dailySales"), saleData);
+
+    // 🧹 تفريغ السلة
+    const qCart = query(collection(db, "cart"), where("shop", "==", shop));
+    const cartSnapshot = await getDocs(qCart);
+    for (const docSnap of cartSnapshot.docs) await deleteDoc(docSnap.ref);
+
+    alert("✅ تم حفظ البيعة بنجاح");
+    setCart([]);
+  } catch (error) {
+    console.error("فشل حفظ الفاتورة:", error);
+    alert("حدث خطأ أثناء حفظ الفاتورة");
+  } finally {
+    setIsSaving(false);
+  }
 };
+
 
 // دالة منفصلة لتحديث المخزن
 const updateStock = async (cartItems) => {
