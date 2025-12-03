@@ -90,7 +90,7 @@ function Main() {
       }
     );
 
-    return () => unsubscribe(); // لإلغاء الاشتراك عند تغيير shop أو تفكيك المكون
+    return () => unsubscribe();
   }, [shop]);
 
   // Masrofat - تحسين
@@ -930,58 +930,180 @@ function Main() {
   // handleSaveReport: now we trust that stock was decremented when adding; still we verify availability as safety
   // -------------------------
   const [invoice, setInvoice] = useState(null);
-  const handleSaveReport = async () => {
-    if (isSaving) return;
-    setIsSaving(true);
+const handleSaveReport = async () => {
+  if (isSaving) return;
+  setIsSaving(true);
 
-    const clientName = nameRef.current?.value || "";
-    const phone = phoneRef.current?.value || "";
-    const date = new Date();
+  const clientName = nameRef.current?.value || "";
+  const phone = phoneRef.current?.value || "";
 
-    if (cart.length === 0) {
-      alert("يرجى إضافة منتجات إلى السلة قبل الحفظ");
-      setIsSaving(false);
-      return;
-    }
-
-    // 1️⃣ تجهيز بيانات الفاتورة
-    const saleData = {
-      clientName,
-      phone,
-      cart,
-      date,
-      shop,
-    };
-
-    // 2️⃣ حفظ الفاتورة
-    await addDoc(collection(db, "dailySales"), saleData);
-
-    // 3️⃣ تحديث المخزون
-    for (const item of cart) {
-      if (!item.originalProductId) continue;
-
-      const prodRef = doc(db, "lacosteProducts", item.originalProductId);
-      const prodSnap = await getDoc(prodRef);
-      if (!prodSnap.exists()) continue;
-
-      const prodData = prodSnap.data();
-      let updatedQty = (prodData.quantity || 0) - item.quantity;
-      if (updatedQty < 0) updatedQty = 0;
-
-      await updateDoc(prodRef, { quantity: updatedQty });
-    }
-
-    // 4️⃣ حذف السلة
-    const qCart = query(collection(db, "cart"), where("shop", "==", shop));
-    const cartSnapshot = await getDocs(qCart);
-
-    for (const docSnap of cartSnapshot.docs) {
-      await deleteDoc(docSnap.ref);
-    }
-
-    alert("تم حفظ الفاتورة وتحديث المخزون");
+  if (cart.length === 0) {
+    alert("يرجى إضافة منتجات إلى السلة قبل الحفظ");
     setIsSaving(false);
+    return;
+  }
+
+  // 🧾 جلب رقم الفاتورة التسلسلي
+  const counterRef = doc(db, "counters", "invoiceCounter");
+  const invoiceNumber = await runTransaction(db, async (transaction) => {
+    const counterSnap = await transaction.get(counterRef);
+    let currentNumber = 0;
+
+    if (counterSnap.exists()) {
+      currentNumber = counterSnap.data().lastInvoiceNumber || 0;
+    }
+
+    const newNumber = currentNumber + 1;
+    transaction.set(counterRef, { lastInvoiceNumber: newNumber }, { merge: true });
+    return newNumber;
+  });
+
+  // 🧮 الحسابات
+  const computedSubtotal = cart.reduce(
+    (sum, item) => sum + item.sellPrice * item.quantity,
+    0
+  );
+  const computedFinalTotal = Math.max(0, computedSubtotal - appliedDiscount);
+  const discountRatio = computedSubtotal > 0 ? appliedDiscount / computedSubtotal : 0;
+  const computedProfit = cart.reduce((sum, item) => {
+    const itemSellTotal = item.sellPrice * item.quantity;
+    const itemDiscount = itemSellTotal * discountRatio;
+    const itemNetSell = itemSellTotal - itemDiscount;
+    const itemBuyTotal = (item.buyPrice || 0) * item.quantity;
+    return sum + (itemNetSell - itemBuyTotal);
+  }, 0);
+
+  // 🔥 بيانات الفاتورة
+  const saleData = {
+    invoiceNumber,
+    cart,
+    clientName,
+    phone,
+    subtotal: computedSubtotal,
+    discount: appliedDiscount,
+    discountNotes: discountNotes,
+    total: computedFinalTotal,
+    profit: computedProfit,
+    date: new Date(),
+    shop,
+    employee: selectedEmployee || "غير محدد",
   };
+
+  // 🧾 حفظ البيانات
+  await addDoc(collection(db, "dailySales"), saleData);
+  await addDoc(collection(db, "employeesReports"), saleData);
+
+  // 🔄 تحديث المخزون بعد البيع
+  for (const item of cart) {
+    if (!item.originalProductId) continue;
+
+    const prodRef = doc(db, "lacosteProducts", item.originalProductId);
+    const prodSnap = await getDoc(prodRef);
+    if (!prodSnap.exists()) continue;
+
+    const prodData = prodSnap.data();
+
+    // 🟢 المنتج بسيط
+    const isSimpleProduct =
+      (!Array.isArray(prodData.colors) || prodData.colors.length === 0) &&
+      (!Array.isArray(prodData.sizes) || prodData.sizes.length === 0);
+
+    if (isSimpleProduct) {
+      const currentQty = prodData.quantity || 0;
+      const newQty = Math.max(0, currentQty - item.quantity);
+      await updateDoc(prodRef, { quantity: newQty });
+      continue;
+    }
+
+    // 🟠 المنتج له ألوان/مقاسات
+    let updatedData = { ...prodData };
+
+    // له ألوان
+    if (item.color && Array.isArray(updatedData.colors)) {
+      updatedData.colors = updatedData.colors
+        .map((c) => {
+          if (c.color !== item.color) return c;
+
+          if (item.size && Array.isArray(c.sizes)) {
+            c.sizes = c.sizes
+              .map((s) => {
+                if (s.size === item.size) {
+                  s.qty = Math.max(0, (s.qty || s.quantity || 0) - item.quantity);
+                }
+                return s;
+              })
+              .filter((s) => (s.qty || 0) > 0);
+          } else {
+            c.quantity = Math.max(0, (c.quantity || 0) - item.quantity);
+          }
+
+          return c;
+        })
+        .filter((c) => {
+          if (c.sizes) return c.sizes.length > 0;
+          if (c.quantity !== undefined) return c.quantity > 0;
+          return true;
+        });
+    }
+
+    // له مقاسات فقط
+    if (item.size && Array.isArray(updatedData.sizes)) {
+      updatedData.sizes = updatedData.sizes
+        .map((s) => {
+          if (s.size === item.size) {
+            s.qty = Math.max(0, (s.qty || s.quantity || 0) - item.quantity);
+          }
+          return s;
+        })
+        .filter((s) => (s.qty || 0) > 0);
+    }
+
+    // حساب إجمالي الكمية النهائي
+    let totalQty = updatedData.quantity || 0;
+
+    if (Array.isArray(updatedData.sizes)) {
+      totalQty = updatedData.sizes.reduce((sum, s) => sum + (s.qty || 0), 0);
+    }
+
+    if (Array.isArray(updatedData.colors)) {
+      totalQty = updatedData.colors.reduce((sum, c) => {
+        if (c.sizes) {
+          return sum + c.sizes.reduce((sSum, s) => sSum + (s.qty || 0), 0);
+        }
+        return sum + (c.quantity || 0);
+      }, 0);
+    }
+
+    if (totalQty > 0) {
+      await updateDoc(prodRef, { ...updatedData, quantity: totalQty });
+    } else {
+      await deleteDoc(prodRef);
+    }
+  }
+
+  // 🗂️ حفظ آخر فاتورة محليًا
+  if (typeof window !== "undefined") {
+    localStorage.setItem("lastInvoice", JSON.stringify(saleData));
+  }
+
+  // 🧹 تفريغ السلة
+  const qCart = query(collection(db, "cart"), where("shop", "==", shop));
+  const cartSnapshot = await getDocs(qCart);
+  for (const docSnap of cartSnapshot.docs) await deleteDoc(docSnap.ref);
+
+  // ✅ تعيين الفاتورة للطباعة وطباعة مباشرة
+  setInvoice(saleData);
+  alert("تم حفظ التقرير بنجاح");
+  handlePrintInvoice(saleData);
+
+  setAppliedDiscount(0);
+  setDiscountInput(0);
+  setDiscountNotes("");
+  setIsSaving(false);
+  setSavePage(false);
+  setShowClientPopup(false);
+};
+
 
   const handlePrintInvoice = (invoice) => {
     if (!invoice) return;
@@ -1373,7 +1495,6 @@ function Main() {
     setVariantProduct(null);
   };
 
-  // return product (refund) -> restore color/size quantities to lacosteProducts
   // 🌟 خريطة لتتبع المنتجات الجاري إرجاعها
   const returningItemsMap = new Map();
 
