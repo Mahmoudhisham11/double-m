@@ -519,6 +519,7 @@ function Reports() {
         "0"
       )}/${today.getFullYear()}`;
 
+      // 🔹 التحقق من إجمالي المبيعات
       const dailySalesQ = query(
         collection(db, "dailySales"),
         where("shop", "==", item.shop)
@@ -541,6 +542,56 @@ function Reports() {
         return;
       }
 
+      // 🔹 تحديث المخزن
+      const prodQuerySnap = await getDocs(
+        query(
+          collection(db, "lacosteProducts"),
+          where("code", "==", item.code),
+          where("shop", "==", item.shop)
+        )
+      );
+
+      if (!prodQuerySnap.empty) {
+        const prodRef = prodQuerySnap.docs[0].ref;
+        const prodData = prodQuerySnap.docs[0].data();
+        let updatedData = { ...prodData };
+
+        // المنتج له ألوان ومقاسات
+        if (item.color && Array.isArray(updatedData.colors)) {
+          updatedData.colors = updatedData.colors.map((c) => {
+            if (c.color === item.color) {
+              if (item.size && Array.isArray(c.sizes)) {
+                c.sizes = c.sizes.map((s) =>
+                  s.size === item.size
+                    ? { ...s, qty: (s.qty || 0) + Number(item.quantity) }
+                    : s
+                );
+              } else {
+                c.quantity = (c.quantity || 0) + Number(item.quantity);
+              }
+            }
+            return c;
+          });
+        }
+        // المنتج له مقاسات فقط
+        else if (item.size && Array.isArray(updatedData.sizes)) {
+          updatedData.sizes = updatedData.sizes.map((s) =>
+            s.size === item.size
+              ? { ...s, qty: (s.qty || 0) + Number(item.quantity) }
+              : s
+          );
+        }
+        // المنتج بسيط
+        else if (!item.color && !item.size) {
+          updatedData.quantity =
+            (updatedData.quantity || 0) + Number(item.quantity);
+        }
+
+        // تحديث المخزن
+        await updateDoc(prodRef, updatedData);
+      }
+
+      // 🔹 التعامل مع الفاتورة
       const invoiceRef = doc(db, "reports", invoiceId);
       const invoiceSnap = await getDoc(invoiceRef);
 
