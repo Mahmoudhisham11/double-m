@@ -67,11 +67,9 @@ export default function DailyReports() {
       setTotalQty(computeTotalProducts(data));
     });
 
-    // مهم جدًا عشان يمنع memory leak
     return () => unsubscribe();
   }, []);
 
-  // البحث + الفلترة + تحديث الإجمالي
   useEffect(() => {
     let result;
 
