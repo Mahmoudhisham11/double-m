@@ -1,12 +1,17 @@
-'use client';
+"use client";
 import SideBar from "@/components/SideBar/page";
 import styles from "./styles.module.css";
 import { useEffect, useState } from "react";
-import { collection, query, where, onSnapshot, getDocs} from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  getDocs,
+} from "firebase/firestore";
 import { db } from "../firebase";
 
 export default function DailyReports() {
-
   const [products, setProducts] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [search, setSearch] = useState("");
@@ -42,30 +47,29 @@ export default function DailyReports() {
   };
 
   useEffect(() => {
-  const fetchProducts = async () => {
-  const shop = localStorage.getItem("shop");
-  if (!shop) return;
+    const shop = localStorage.getItem("shop");
+    if (!shop) return;
 
-  const q = query(
-    collection(db, "lacosteProducts"),
-    where("shop", "==", shop),
-    where("type", "==", "product")
-  );
+    const q = query(
+      collection(db, "lacosteProducts"),
+      where("shop", "==", shop),
+      where("type", "==", "product")
+    );
 
-  try {
-    const snapshot = await getDocs(q);
-    const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-    setProducts(data);
-    setFiltered(data);
-    setTotalQty(computeTotalProducts(data));
-  } catch (err) {
-    console.error("Error fetching products:", err);
-  }
-  };
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
 
-  fetchProducts();
+      setProducts(data);
+      setFiltered(data);
+      setTotalQty(computeTotalProducts(data));
+    });
+
+    // مهم جدًا عشان يمنع memory leak
+    return () => unsubscribe();
   }, []);
-
 
   // البحث + الفلترة + تحديث الإجمالي
   useEffect(() => {
@@ -83,14 +87,11 @@ export default function DailyReports() {
     setTotalQty(computeTotalProducts(result));
   }, [search, products]);
 
-
   return (
     <div className={styles.DailyReports}>
       <SideBar />
 
       <div className={styles.content}>
-        
-
         {/* -- شريط البحث -- */}
         <div className={styles.searchBox}>
           <div className="inputContainer">
@@ -102,7 +103,7 @@ export default function DailyReports() {
             />
           </div>
         </div>
-        
+
         <button
           onClick={() => {
             if (typeof window !== "undefined") {
@@ -128,11 +129,16 @@ export default function DailyReports() {
               // شيل printWindow.close() عشان النافذة متتقفلش على طول
             }
           }}
-          style={{ padding: "8px 12px", marginBottom: "12px", background: "#ffd400", border: "none", borderRadius: 6 }}
+          style={{
+            padding: "8px 12px",
+            marginBottom: "12px",
+            background: "#ffd400",
+            border: "none",
+            borderRadius: 6,
+          }}
         >
           طباعة المنتجات
         </button>
-
 
         {/* ✔ عرض إجمالي الكمية */}
         <div className={styles.totals}>
@@ -165,7 +171,6 @@ export default function DailyReports() {
                 );
               })}
             </tbody>
-
           </table>
         </div>
       </div>
