@@ -965,25 +965,27 @@ const handleSaveReport = async () => {
 
   await addDoc(collection(db, "dailySales"), saleData);
 
-  // 🔄 تحديث المخزن للمنتجات المباعة فقط
-  for (const item of cart) {
-    if (!item.originalProductId) continue;
-    const prodRef = doc(db, "lacosteProducts", item.originalProductId);
-    const prodSnap = await getDoc(prodRef);
-    if (!prodSnap.exists()) continue;
-    const currentQty = prodSnap.data().quantity || 0;
-    await updateDoc(prodRef, { quantity: Math.max(0, currentQty - item.quantity) });
-  }
-
-  // 🧹 تفريغ السلة
-  const qCart = query(collection(db, "cart"), where("shop", "==", shop));
-  const cartSnapshot = await getDocs(qCart);
-  for (const docSnap of cartSnapshot.docs) await deleteDoc(docSnap.ref);
-
-  alert("✅ تم حفظ البيعة وتحديث المخزن");
+  alert("✅ تم حفظ البيعة بنجاح");
   setCart([]);
   setIsSaving(false);
 };
+
+// دالة منفصلة لتحديث المخزن
+const updateStock = async (cartItems) => {
+  for (const item of cartItems) {
+    if (!item.originalProductId) continue;
+
+    const prodRef = doc(db, "lacosteProducts", item.originalProductId);
+    const prodSnap = await getDoc(prodRef);
+    if (!prodSnap.exists()) continue;
+
+    const currentQty = prodSnap.data().quantity || 0;
+    await updateDoc(prodRef, { quantity: Math.max(0, currentQty - item.quantity) });
+  }
+};
+useEffect(() => {
+  updateStock()
+}, [dailySales])
 
 
 
