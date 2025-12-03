@@ -1,38 +1,38 @@
 .mainContainer {
-    width: 100%;
-    min-height: 100vh;
-    display: flex;
-    justify-content: start;
-    align-items: start;
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  justify-content: start;
+  align-items: start;
 }
 .middleSection {
-    width: 60%;
-    min-height: 100vh;
-    padding: 30px 20px;
+  width: 60%;
+  min-height: 100vh;
+  padding: 30px 20px;
 }
 .title {
-    width: 100%;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 .title h3 {
-    white-space: nowrap;
-    font-size: 25px;
+  white-space: nowrap;
+  font-size: 25px;
 }
 
 .rightSide {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
 }
 .rightSide button {
-    display: none;
-    background-color: transparent;
-    border: none;
-    color: black;
-    font-size: 20px;
+  display: none;
+  background-color: transparent;
+  border: none;
+  color: black;
+  font-size: 20px;
 }
 .leftSide {
   display: flex;
@@ -95,7 +95,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  transition: .3s;
+  transition: 0.3s;
 }
 .eyeBtn:hover {
   background-color: white;
@@ -110,7 +110,7 @@
   color: white;
   border-radius: 8px;
   padding: 5px;
-  transition: .3s;
+  transition: 0.3s;
 }
 .closeDay:hover {
   background-color: var(--hover-color);
@@ -123,10 +123,10 @@
   color: white;
   border-radius: 8px;
   padding: 5px;
-  transition: .3s;
+  transition: 0.3s;
 }
 .tableContainer {
-    width: 100%;
+  width: 100%;
 }
 /* ==================== الفاتورة (Invoice Sidebar) ==================== */
 .resetContainer {
@@ -440,9 +440,9 @@
   transform: translateY(-1px);
 }
 .tableInput {
-    background-color: transparent;
-    border: none;
-    outline: none;
+  background-color: transparent;
+  border: none;
+  outline: none;
 }
 .popupOverlay {
   position: fixed;
@@ -790,7 +790,7 @@
   max-width: 90%;
   box-shadow: 0 10px 35px rgba(0, 0, 0, 0.15);
   animation: slideUp 0.3s ease;
-  font-family: 'Cairo', sans-serif;
+  font-family: "Cairo", sans-serif;
 }
 
 /* العنوان */
@@ -873,8 +873,12 @@
 
 /* تأثيرات دخول وخروج */
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {
@@ -887,150 +891,156 @@
     opacity: 1;
   }
 }
+.printBtn {
+  width: 100%;
+  height: 30px;
+  background-color: var(--main-color);
+  color: white;
+  font-size: 18px;
+  border: none;
+  border-radius: 8px;
+}
 
-
-
-
-@media(max-width: 767px) {
+@media (max-width: 767px) {
   .sallesBtn {
     display: flex;
   }
-    /* زر القائمة يظهر */
-    .rightSide button {
-        display: block;
-    }
+  /* زر القائمة يظهر */
+  .rightSide button {
+    display: block;
+  }
 
-    /* إخفاء الفاتورة الجانبية بشكل افتراضي */
-    .resetContainer {
-        position: fixed;
-        left: -200%;
-        background-color: white;
-        width: 100%;
-        z-index: 2000;
-        transition: .3s;
-    }
-    .resetContainer.active {
-      left: 0;
-    }
-    .leftSide {
-      width: 100%;
-      flex-direction: column;
-    }
+  /* إخفاء الفاتورة الجانبية بشكل افتراضي */
+  .resetContainer {
+    position: fixed;
+    left: -200%;
+    background-color: white;
+    width: 100%;
+    z-index: 2000;
+    transition: 0.3s;
+  }
+  .resetContainer.active {
+    left: 0;
+  }
+  .leftSide {
+    width: 100%;
+    flex-direction: column;
+  }
 
-    /* الجزء الأوسط يأخذ العرض كله */
-    .middleSection {
-        width: 100%;
-        padding: 15px 5%;
-    }
+  /* الجزء الأوسط يأخذ العرض كله */
+  .middleSection {
+    width: 100%;
+    padding: 15px 5%;
+  }
 
-    /* إخفاء الصفوف الزائدة أو غير المهمة */
-    .lastRow {
-        display: none;
-    }
+  /* إخفاء الصفوف الزائدة أو غير المهمة */
+  .lastRow {
+    display: none;
+  }
 
-    /* الحاوية الرئيسية تتحول لعمود */
-    .mainContainer {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 15px;
-    }
+  /* الحاوية الرئيسية تتحول لعمود */
+  .mainContainer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 15px;
+  }
 
-    /* العنوان + الزرار + البحث يتصرفوا كعمود */
-    .title {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 10px;
-    }
+  /* العنوان + الزرار + البحث يتصرفوا كعمود */
+  .title {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
 
-    .title h3 {
-        font-size: 22px;
-        margin: 0;
-    }
+  .title h3 {
+    font-size: 22px;
+    margin: 0;
+  }
 
-    .rightSide {
-        width: 100%;
-        justify-content: flex-start;
-    }
+  .rightSide {
+    width: 100%;
+    justify-content: flex-start;
+  }
 
-    .rightSide button {
-        font-size: 18px;
-    }
+  .rightSide button {
+    font-size: 18px;
+  }
 
-    /* تحسين حقل البحث */
-    .searchBox {
-        width: 100%;
-        max-width: 100%;
-        padding: 8px 15px;
-    }
+  /* تحسين حقل البحث */
+  .searchBox {
+    width: 100%;
+    max-width: 100%;
+    padding: 8px 15px;
+  }
 
-    .searchBox input {
-        font-size: 14px;
-    }
+  .searchBox input {
+    font-size: 14px;
+  }
 
-    /* جدول الفواتير يتناسب مع العرض */
-    .orderBox {
-        height: calc(100vh - 200px);
-        padding: 5px 0;
-        overflow-x: auto; /* ✅ يضيف تمرير أفقي للجدول */
-    }
+  /* جدول الفواتير يتناسب مع العرض */
+  .orderBox {
+    height: calc(100vh - 200px);
+    padding: 5px 0;
+    overflow-x: auto; /* ✅ يضيف تمرير أفقي للجدول */
+  }
 
-    .orderBox table {
-      width: 100%;
-      min-width: 500px; /* إذا احتاجت بعض الأعمدة للعرض الكامل */
-      border-collapse: collapse;
-    }
+  .orderBox table {
+    width: 100%;
+    min-width: 500px; /* إذا احتاجت بعض الأعمدة للعرض الكامل */
+    border-collapse: collapse;
+  }
 
-    .cardsContainer {
-      flex-direction: column;
-      gap: 10px;
-      justify-content: space-between;
-    }
+  .cardsContainer {
+    flex-direction: column;
+    gap: 10px;
+    justify-content: space-between;
+  }
 
-    .card {
-        width: 100%;
-        padding: 15px;
-        font-size: 14px;
-    }
+  .card {
+    width: 100%;
+    padding: 15px;
+    font-size: 14px;
+  }
 
-    /* الفاتورة الجانبية تظهر كنافذة كاملة عند الحاجة */
-    .invoiceSidebar {
-        width: 100%;
-        padding: 15px;
-        border-radius: 0;
-    }
+  /* الفاتورة الجانبية تظهر كنافذة كاملة عند الحاجة */
+  .invoiceSidebar {
+    width: 100%;
+    padding: 15px;
+    border-radius: 0;
+  }
 
-    /* تفاصيل العميل أصغر */
-    .sidebarInfo {
-        padding: 10px 8px;
-        font-size: 14px;
-    }
+  /* تفاصيل العميل أصغر */
+  .sidebarInfo {
+    padding: 10px 8px;
+    font-size: 14px;
+  }
 
-    /* جدول المنتجات أصغر والخلايا أصغر */
-    .sidebarProducts table {
-        font-size: 12px;
-    }
+  /* جدول المنتجات أصغر والخلايا أصغر */
+  .sidebarProducts table {
+    font-size: 12px;
+  }
 
-    .sidebarProducts th,
-    .sidebarProducts td {
-        padding: 6px;
-    }
+  .sidebarProducts th,
+  .sidebarProducts td {
+    padding: 6px;
+  }
 
-    /* أزرار الإرجاع أصغر */
-    .returnBtn {
-        padding: 4px 8px;
-        font-size: 12px;
-    }
+  /* أزرار الإرجاع أصغر */
+  .returnBtn {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
 
-    /* أزرار الفاتورة السفلية */
-    .resetBtns {
-        flex-direction: column;
-        gap: 10px;
-    }
+  /* أزرار الفاتورة السفلية */
+  .resetBtns {
+    flex-direction: column;
+    gap: 10px;
+  }
 
-    .resetBtns button {
-        width: 100%;
-    }
-    .tableContainer {
-      overflow-x: auto;
-    }
+  .resetBtns button {
+    width: 100%;
+  }
+  .tableContainer {
+    overflow-x: auto;
+  }
 }
