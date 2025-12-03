@@ -21,7 +21,7 @@ import {
   getDoc,
   writeBatch,
   Timestamp,
-  setDoc ,
+  setDoc,
 } from "firebase/firestore";
 import { db } from "@/app/firebase";
 import { useRouter } from "next/navigation";
@@ -930,78 +930,82 @@ function Main() {
   // handleSaveReport: now we trust that stock was decremented when adding; still we verify availability as safety
   // -------------------------
   const [invoice, setInvoice] = useState(null);
-const handleSaveReport = async () => {
-  if (isSaving) return;
-  setIsSaving(true);
+  const handleSaveReport = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
 
-  const clientName = nameRef.current?.value || "";
-  const phone = phoneRef.current?.value || "";
+    const clientName = nameRef.current?.value || "";
+    const phone = phoneRef.current?.value || "";
 
-  if (!Array.isArray(cart) || cart.length === 0) {
-    alert("يرجى إضافة منتجات إلى السلة قبل الحفظ");
-    setIsSaving(false);
-    return;
-  }
+    if (!Array.isArray(cart) || cart.length === 0) {
+      alert("يرجى إضافة منتجات إلى السلة قبل الحفظ");
+      setIsSaving(false);
+      return;
+    }
 
-  try {
-    // 🔢 جلب آخر رقم فاتورة بدون transaction
-    const counterRef = doc(db, "counters", "invoiceCounter");
-    const counterSnap = await getDoc(counterRef);
-    const currentNumber = counterSnap.exists() ? counterSnap.data().lastInvoiceNumber || 0 : 0;
-    const invoiceNumber = currentNumber + 1;
+    try {
+      // 🔢 جلب آخر رقم فاتورة بدون transaction
+      const counterRef = doc(db, "counters", "invoiceCounter");
+      const counterSnap = await getDoc(counterRef);
+      const currentNumber = counterSnap.exists()
+        ? counterSnap.data().lastInvoiceNumber || 0
+        : 0;
+      const invoiceNumber = currentNumber + 1;
 
-    // تحديث آخر رقم فاتورة
-    await setDoc(counterRef, { lastInvoiceNumber: invoiceNumber }, { merge: true });
+      // تحديث آخر رقم فاتورة
+      await setDoc(
+        counterRef,
+        { lastInvoiceNumber: invoiceNumber },
+        { merge: true }
+      );
 
-    // 🗂️ تحضير بيانات الفاتورة
-    const saleData = {
-      invoiceNumber,
-      cart,
-      clientName,
-      phone,
-      date: new Date(),
-      shop,
-    };
+      // 🗂️ تحضير بيانات الفاتورة
+      const saleData = {
+        invoiceNumber,
+        cart,
+        clientName,
+        phone,
+        date: new Date(),
+        shop,
+      };
 
-    // 🔥 حفظ الفاتورة
-    await addDoc(collection(db, "dailySales"), saleData);
-    await updateStock(cart);
+      // 🔥 حفظ الفاتورة
+      await addDoc(collection(db, "dailySales"), saleData);
+      await updateStock(cart);
+      setInvoice(saleData)
+      handlePrintInvoice(saleData)
 
-    // 🧹 تفريغ السلة
-    const qCart = query(collection(db, "cart"), where("shop", "==", shop));
-    const cartSnapshot = await getDocs(qCart);
-    for (const docSnap of cartSnapshot.docs) await deleteDoc(docSnap.ref);
+      // 🧹 تفريغ السلة
+      const qCart = query(collection(db, "cart"), where("shop", "==", shop));
+      const cartSnapshot = await getDocs(qCart);
+      for (const docSnap of cartSnapshot.docs) await deleteDoc(docSnap.ref);
 
-    alert("✅ تم حفظ البيعة بنجاح");
-    setCart([]);
-  } catch (error) {
-    console.error("فشل حفظ الفاتورة:", error);
-    alert("حدث خطأ أثناء حفظ الفاتورة");
-  } finally {
-    setIsSaving(false);
-  }
-};
+      alert("✅ تم حفظ البيعة بنجاح");
+      setCart([]);
+    } catch (error) {
+      console.error("فشل حفظ الفاتورة:", error);
+      alert("حدث خطأ أثناء حفظ الفاتورة");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+  // دالة لتحديث المخزن بعد البيع
+  const updateStock = async (cartItems) => {
+    if (!Array.isArray(cartItems) || cartItems.length === 0) return;
 
-// دالة لتحديث المخزن بعد البيع
-const updateStock = async (cartItems) => {
-  if (!Array.isArray(cartItems) || cartItems.length === 0) return;
+    for (const item of cartItems) {
+      if (!item.originalProductId) continue; // لو المنتج مش مرتبط بالمخزن
 
-  for (const item of cartItems) {
-    if (!item.originalProductId) continue; // لو المنتج مش مرتبط بالمخزن
+      const prodRef = doc(db, "lacosteProducts", item.originalProductId);
+      const prodSnap = await getDoc(prodRef);
+      if (!prodSnap.exists()) continue;
 
-    const prodRef = doc(db, "lacosteProducts", item.originalProductId);
-    const prodSnap = await getDoc(prodRef);
-    if (!prodSnap.exists()) continue;
+      const currentQty = prodSnap.data().quantity || 0;
+      const newQty = Math.max(0, currentQty - item.quantity); // خصم الكمية المباعة
 
-    const currentQty = prodSnap.data().quantity || 0;
-    const newQty = Math.max(0, currentQty - item.quantity); // خصم الكمية المباعة
-
-    await updateDoc(prodRef, { quantity: newQty });
-  }
-};
-
-
-
+      await updateDoc(prodRef, { quantity: newQty });
+    }
+  };
 
   const handlePrintInvoice = (invoice) => {
     if (!invoice) return;
