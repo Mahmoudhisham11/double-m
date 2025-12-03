@@ -930,59 +930,58 @@ function Main() {
   // handleSaveReport: now we trust that stock was decremented when adding; still we verify availability as safety
   // -------------------------
   const [invoice, setInvoice] = useState(null);
-const handleSaveReport = async () => {
-  if (isSaving) return;
-  setIsSaving(true);
+  const handleSaveReport = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
 
-  const clientName = nameRef.current?.value || "";
-  const phone = phoneRef.current?.value || "";
-  const date = new Date();
+    const clientName = nameRef.current?.value || "";
+    const phone = phoneRef.current?.value || "";
+    const date = new Date();
 
-  if (cart.length === 0) {
-    alert("يرجى إضافة منتجات إلى السلة قبل الحفظ");
+    if (cart.length === 0) {
+      alert("يرجى إضافة منتجات إلى السلة قبل الحفظ");
+      setIsSaving(false);
+      return;
+    }
+
+    // 1️⃣ تجهيز بيانات الفاتورة
+    const saleData = {
+      clientName,
+      phone,
+      cart,
+      date,
+      shop,
+    };
+
+    // 2️⃣ حفظ الفاتورة
+    await addDoc(collection(db, "dailySales"), saleData);
+
+    // 3️⃣ تحديث المخزون
+    for (const item of cart) {
+      if (!item.originalProductId) continue;
+
+      const prodRef = doc(db, "lacosteProducts", item.originalProductId);
+      const prodSnap = await getDoc(prodRef);
+      if (!prodSnap.exists()) continue;
+
+      const prodData = prodSnap.data();
+      let updatedQty = (prodData.quantity || 0) - item.quantity;
+      if (updatedQty < 0) updatedQty = 0;
+
+      await updateDoc(prodRef, { quantity: updatedQty });
+    }
+
+    // 4️⃣ حذف السلة
+    const qCart = query(collection(db, "cart"), where("shop", "==", shop));
+    const cartSnapshot = await getDocs(qCart);
+
+    for (const docSnap of cartSnapshot.docs) {
+      await deleteDoc(docSnap.ref);
+    }
+
+    alert("تم حفظ الفاتورة وتحديث المخزون");
     setIsSaving(false);
-    return;
-  }
-
-  // 1️⃣ تجهيز بيانات الفاتورة
-  const saleData = {
-    clientName,
-    phone,
-    cart,
-    date,
-    shop,
   };
-
-  // 2️⃣ حفظ الفاتورة
-  const saleRef = await addDoc(collection(db, "dailySales"), saleData);
-
-  // 3️⃣ تحديث المخزون
-  for (const item of cart) {
-    if (!item.originalProductId) continue;
-
-    const prodRef = doc(db, "lacosteProducts", item.originalProductId);
-    const prodSnap = await getDoc(prodRef);
-    if (!prodSnap.exists()) continue;
-
-    const prodData = prodSnap.data();
-    let updatedQty = (prodData.quantity || 0) - item.quantity;
-    if (updatedQty < 0) updatedQty = 0;
-
-    await updateDoc(prodRef, { quantity: updatedQty });
-  }
-
-  // 4️⃣ حذف السلة
-  const qCart = query(collection(db, "cart"), where("shop", "==", shop));
-  const cartSnapshot = await getDocs(qCart);
-
-  for (const docSnap of cartSnapshot.docs) {
-    await deleteDoc(docSnap.ref);
-  }
-
-  alert("تم حفظ الفاتورة وتحديث المخزون");
-  setIsSaving(false);
-};
-
 
   const handlePrintInvoice = (invoice) => {
     if (!invoice) return;
@@ -1173,140 +1172,6 @@ const handleSaveReport = async () => {
     printWindow.document.close();
     printWindow.focus();
   };
-
-  const processPendingSales = async () => {
-    try {
-      // 1️⃣ جلب كل الفواتير المعلقة
-      const pendingSalesQuery = query(
-        collection(db, "dailySales"),
-        where("status", "==", "معلقة")
-      );
-      const pendingSnapshot = await getDocs(pendingSalesQuery);
-      const pendingSales = pendingSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-
-      // 2️⃣ معالجة كل فاتورة معلقة
-      for (const sale of pendingSales) {
-        try {
-          // تعديل المخزون لكل منتج في الفاتورة
-          for (const item of sale.cart) {
-            if (!item.originalProductId) continue;
-            const prodRef = doc(db, "lacosteProducts", item.originalProductId);
-            const prodSnap = await getDoc(prodRef);
-            if (!prodSnap.exists()) continue;
-            const prodData = prodSnap.data();
-
-            // 🟢 المنتج بسيط
-            const isSimpleProduct =
-              (!Array.isArray(prodData.colors) ||
-                prodData.colors.length === 0) &&
-              (!Array.isArray(prodData.sizes) || prodData.sizes.length === 0);
-
-            if (isSimpleProduct) {
-              const newQty = Math.max(
-                0,
-                (prodData.quantity || 0) - item.quantity
-              );
-              await updateDoc(prodRef, { quantity: newQty });
-              continue;
-            }
-
-            // 🟠 المنتج له ألوان/مقاسات
-            let updatedData = { ...prodData };
-
-            if (item.color && Array.isArray(updatedData.colors)) {
-              updatedData.colors = updatedData.colors
-                .map((c) => {
-                  if (c.color !== item.color) return c;
-
-                  if (item.size && Array.isArray(c.sizes)) {
-                    c.sizes = c.sizes
-                      .map((s) => {
-                        if (s.size === item.size) {
-                          s.qty = Math.max(
-                            0,
-                            (s.qty || s.quantity || 0) - item.quantity
-                          );
-                        }
-                        return s;
-                      })
-                      .filter((s) => (s.qty || 0) > 0);
-                  } else {
-                    c.quantity = Math.max(0, (c.quantity || 0) - item.quantity);
-                  }
-
-                  return c;
-                })
-                .filter((c) => {
-                  if (c.sizes) return c.sizes.length > 0;
-                  if (c.quantity !== undefined) return c.quantity > 0;
-                  return true;
-                });
-            }
-
-            if (item.size && Array.isArray(updatedData.sizes)) {
-              updatedData.sizes = updatedData.sizes
-                .map((s) => {
-                  if (s.size === item.size) {
-                    s.qty = Math.max(
-                      0,
-                      (s.qty || s.quantity || 0) - item.quantity
-                    );
-                  }
-                  return s;
-                })
-                .filter((s) => (s.qty || 0) > 0);
-            }
-
-            let totalQty = updatedData.quantity || 0;
-
-            if (Array.isArray(updatedData.sizes)) {
-              totalQty = updatedData.sizes.reduce(
-                (sum, s) => sum + (s.qty || 0),
-                0
-              );
-            }
-
-            if (Array.isArray(updatedData.colors)) {
-              totalQty = updatedData.colors.reduce((sum, c) => {
-                if (c.sizes) {
-                  return (
-                    sum + c.sizes.reduce((sSum, s) => sSum + (s.qty || 0), 0)
-                  );
-                }
-                return sum + (c.quantity || 0);
-              }, 0);
-            }
-
-            if (totalQty > 0) {
-              await updateDoc(prodRef, { ...updatedData, quantity: totalQty });
-            } else {
-              await deleteDoc(prodRef);
-            }
-          }
-
-          // 3️⃣ تغيير الحالة لمكتملة أو أي قيمة غير "معلقة"
-          const saleRef = doc(db, "dailySales", sale.id);
-          await updateDoc(saleRef, { status: "مكتملة" });
-        } catch (error) {
-          console.error(
-            "فشل معالجة الفاتورة المعلقة:",
-            sale.invoiceNumber,
-            error
-          );
-        }
-      }
-
-      console.log("تمت معالجة كل الفواتير المعلقة بنجاح");
-    } catch (err) {
-      console.error("فشل جلب الفواتير المعلقة:", err);
-    }
-  };
-  useEffect(() => {
-    processPendingSales();
-  }, [dailySales]);
 
   const handleCloseDay = async () => {
     // 🟡 إضافة تأكيد قبل التنفيذ
