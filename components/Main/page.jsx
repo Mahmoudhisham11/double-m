@@ -943,7 +943,7 @@ const handleSaveReport = async () => {
     return;
   }
 
-  // 🧾 رقم الفاتورة التسلسلي
+  // 🔢 رقم الفاتورة
   const counterRef = doc(db, "counters", "invoiceCounter");
   const invoiceNumber = await runTransaction(db, async (transaction) => {
     const counterSnap = await transaction.get(counterRef);
@@ -953,32 +953,24 @@ const handleSaveReport = async () => {
     return newNumber;
   });
 
-  // 🧾 بيانات الفاتورة
+  // 🗂️ حفظ البيعة
   const saleData = {
     invoiceNumber,
     cart,
     clientName,
     phone,
-    total: cart.reduce((sum, item) => sum + item.sellPrice * item.quantity, 0) - appliedDiscount,
     date: new Date(),
     shop,
-    employee: selectedEmployee || "غير محدد",
-    discount: appliedDiscount,
-    discountNotes,
   };
 
-  // 🔥 حفظ البيانات
   await addDoc(collection(db, "dailySales"), saleData);
-  await addDoc(collection(db, "employeesReports"), saleData);
 
-  // 🔄 تحديث المخزون للمنتجات المباعة فقط
+  // 🔄 تحديث المخزن للمنتجات المباعة فقط
   for (const item of cart) {
     if (!item.originalProductId) continue;
-
     const prodRef = doc(db, "lacosteProducts", item.originalProductId);
     const prodSnap = await getDoc(prodRef);
     if (!prodSnap.exists()) continue;
-
     const currentQty = prodSnap.data().quantity || 0;
     await updateDoc(prodRef, { quantity: Math.max(0, currentQty - item.quantity) });
   }
@@ -988,19 +980,11 @@ const handleSaveReport = async () => {
   const cartSnapshot = await getDocs(qCart);
   for (const docSnap of cartSnapshot.docs) await deleteDoc(docSnap.ref);
 
-  // ✅ الطباعة وحفظ آخر فاتورة
-  setInvoice(saleData);
-  if (typeof window !== "undefined") localStorage.setItem("lastInvoice", JSON.stringify(saleData));
-  alert("تم حفظ التقرير بنجاح");
-  handlePrintInvoice(saleData);
-
-  setAppliedDiscount(0);
-  setDiscountInput(0);
-  setDiscountNotes("");
+  alert("✅ تم حفظ البيعة وتحديث المخزن");
+  setCart([]);
   setIsSaving(false);
-  setSavePage(false);
-  setShowClientPopup(false);
 };
+
 
 
 
