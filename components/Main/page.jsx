@@ -1013,6 +1013,7 @@ function Main() {
   };
 
   // دالة لتحديث المخزن بعد البيع
+  // دالة لتحديث المخزن بعد البيع وحذف المنتجات إذا الكمية صفر
   const updateStock = async (cartItems) => {
     if (!Array.isArray(cartItems) || cartItems.length === 0) return;
 
@@ -1024,12 +1025,18 @@ function Main() {
       if (!prodSnap.exists()) continue;
 
       const currentQty = prodSnap.data().quantity || 0;
-      const newQty = Math.max(0, currentQty - item.quantity); // خصم الكمية المباعة
+      const newQty = currentQty - item.quantity;
 
-      await updateDoc(prodRef, { quantity: newQty });
+      if (newQty <= 0) {
+        // لو الكمية صفر أو أقل، نحذف المنتج
+        await deleteDoc(prodRef);
+      } else {
+        // تحديث الكمية
+        await updateDoc(prodRef, { quantity: newQty });
+      }
     }
   };
-
+  
   const handlePrintInvoice = (invoice) => {
     if (!invoice) return;
 

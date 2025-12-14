@@ -55,6 +55,9 @@ function Products() {
   const [colors, setColors] = useState([]);
   const [editId, setEditId] = useState(null);
 
+  const userName =
+    typeof window !== "undefined" ? localStorage.getItem("userName") : "";
+
   const [showModal, setShowModal] = useState(false);
   const [modalCategory, setModalCategory] = useState("");
   const [modalSizeType, setModalSizeType] = useState("");
@@ -989,12 +992,16 @@ function Products() {
 
                           {/* خيارات */}
                           <td className={styles.actions}>
-                            <button onClick={() => handleDelete(product)}>
-                              <FaRegTrashAlt />
-                            </button>
-                            <button onClick={() => handleEdit(product)}>
-                              <MdOutlineEdit />
-                            </button>
+                            {userName === "mostafabeso10@gmail.com" && (
+                              <>
+                                <button onClick={() => handleDelete(product)}>
+                                  <FaRegTrashAlt />
+                                </button>
+                                <button onClick={() => handleEdit(product)}>
+                                  <MdOutlineEdit />
+                                </button>
+                              </>
+                            )}
                             <button onClick={() => handlePrintLabel(product)}>
                               🖨️
                             </button>
