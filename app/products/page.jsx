@@ -50,6 +50,8 @@ function Products() {
     sizeType: "",
     quantity: "",
     category: "",
+    section: "",
+    merchantName: "",
   });
 
   const [colors, setColors] = useState([]);
@@ -272,6 +274,17 @@ function Products() {
       colors && colors.length > 0
         ? computeTotalQtyFromColors(colors)
         : Number(form.quantity || 0);
+    setForm({
+      name: product.name,
+      buyPrice: product.buyPrice,
+      sellPrice: product.sellPrice,
+      color: product.color || "",
+      sizeType: product.sizeType || "",
+      quantity: product.quantity || "",
+      category: product.category || "",
+      section: product.section || "", // 👈
+      merchantName: product.merchantName || "", // 👈
+    });
 
     const productObj = {
       code: newCode,
@@ -280,9 +293,11 @@ function Products() {
       sellPrice: Number(form.sellPrice) || 0,
       finalPrice: Number(finalPrice) || 0,
       quantity: totalQty,
-      colors: colors && colors.length > 0 ? colors : null, // ← مهم جدًا
+      colors: colors && colors.length > 0 ? colors : null,
       sizeType: form.sizeType || "",
       category: form.category || "",
+      section: form.section || "", // 👈
+      merchantName: form.merchantName || "", // 👈
       date: Timestamp.now(),
       shop: shop,
       type: "product",
@@ -294,14 +309,17 @@ function Products() {
     alert("✅ تم إضافة المنتج بنجاح");
 
     setForm({
-      name: "",
-      buyPrice: "",
-      sellPrice: "",
-      color: "",
-      sizeType: "",
-      quantity: "",
-      category: "",
+      name: product.name,
+      buyPrice: product.buyPrice,
+      sellPrice: product.sellPrice,
+      color: product.color || "",
+      sizeType: product.sizeType || "",
+      quantity: product.quantity || "",
+      category: product.category || "",
+      section: product.section || "", // 👈
+      merchantName: product.merchantName || "", // 👈
     });
+
     setColors([]);
   };
 
@@ -445,6 +463,8 @@ function Products() {
       colors: finalColors,
       sizeType: form.sizeType || oldProduct.sizeType || "",
       category: form.category || oldProduct.category || "",
+      section: form.section || oldProduct.section || "", // 👈
+      merchantName: form.merchantName || oldProduct.merchantName || "", // 👈
     });
 
     alert("✅ تم تحديث المنتج بنجاح");
@@ -1068,6 +1088,39 @@ function Products() {
                     onChange={(e) => setFinalPrice(e.target.value)}
                   />
                 </div>
+              </div>
+            </div>
+            <div className={styles.inputBox}>
+              <div className="inputContainer">
+                <label>القسم</label>
+                <select
+                  value={form.section}
+                  onChange={(e) =>
+                    setForm({ ...form, section: e.target.value })
+                  }
+                >
+                  <option value="">اختر القسم</option>
+                  <option value="جينز">جينز</option>
+                  <option value="تيشيرت">تيشيرت</option>
+                  <option value="شروال">شروال</option>
+                  <option value="جاكت">جاكت</option>
+                  <option value="قميص">قميص</option>
+                  <option value="ترينج">ترينج</option>
+                  <option value="اندر شيرت">اندر شيرت</option>
+                </select>
+              </div>
+            </div>
+            <div className={styles.inputBox}>
+              <div className="inputContainer">
+                <label>اسم التاجر</label>
+                <input
+                  type="text"
+                  placeholder="اسم التاجر"
+                  value={form.merchantName}
+                  onChange={(e) =>
+                    setForm({ ...form, merchantName: e.target.value })
+                  }
+                />
               </div>
             </div>
 

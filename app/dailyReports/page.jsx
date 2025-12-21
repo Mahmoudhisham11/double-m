@@ -14,7 +14,7 @@ import { db } from "../firebase";
 export default function DailyReports() {
   const [products, setProducts] = useState([]);
   const [filtered, setFiltered] = useState([]);
-  const [search, setSearch] = useState("");
+  const [selectedSection, setSelectedSection] = useState("");
   const [totalQty, setTotalQty] = useState(0);
 
   // دالة حساب كمية منتج واحد (حسب الألوان والمقاسات)
@@ -73,17 +73,15 @@ export default function DailyReports() {
   useEffect(() => {
     let result;
 
-    if (search.trim()) {
-      result = products.filter((p) =>
-        p.name?.toLowerCase().includes(search.toLowerCase())
-      );
+    if (selectedSection) {
+      result = products.filter((p) => p.section === selectedSection);
     } else {
       result = products;
     }
 
     setFiltered(result);
     setTotalQty(computeTotalProducts(result));
-  }, [search, products]);
+  }, [selectedSection, products]);
 
   return (
     <div className={styles.DailyReports}>
@@ -93,12 +91,19 @@ export default function DailyReports() {
         {/* -- شريط البحث -- */}
         <div className={styles.searchBox}>
           <div className="inputContainer">
-            <input
-              type="text"
-              placeholder="ابحث عن منتج..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+            <select
+              value={selectedSection}
+              onChange={(e) => setSelectedSection(e.target.value)}
+            >
+              <option value="">كل الأقسام</option>
+              <option value="جينز">جينز</option>
+              <option value="تيشيرت">تيشيرت</option>
+              <option value="شروال">شروال</option>
+              <option value="جاكت">جاكت</option>
+              <option value="قميص">قميص</option>
+              <option value="ترينج">ترينج</option>
+              <option value="اندر شيرت">اندر شيرت</option>
+            </select>
           </div>
         </div>
 
