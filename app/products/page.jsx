@@ -1002,17 +1002,16 @@ function Products() {
 
                           {/* خيارات */}
                           <td className={styles.actions}>
-                            {userName === "mostafabeso10@gmail.com" ||
-                              (userName === "mahmoud" && (
-                                <>
-                                  <button onClick={() => handleDelete(product)}>
-                                    <FaRegTrashAlt />
-                                  </button>
-                                  <button onClick={() => handleEdit(product)}>
-                                    <MdOutlineEdit />
-                                  </button>
-                                </>
-                              ))}
+                            {userName === "mostafabeso10@gmail.com" && (
+                              <>
+                                <button onClick={() => handleDelete(product)}>
+                                  <FaRegTrashAlt />
+                                </button>
+                                <button onClick={() => handleEdit(product)}>
+                                  <MdOutlineEdit />
+                                </button>
+                              </>
+                            )}
                             <button onClick={() => handlePrintLabel(product)}>
                               🖨️
                             </button>
