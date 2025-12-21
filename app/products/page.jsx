@@ -269,22 +269,11 @@ function Products() {
     const shop = localStorage.getItem("shop");
     const newCode = await getNextCode();
 
-    // لو المنتج مفيهوش ألوان → خليه quantity = قيمة المستخدم
+    // حساب الكمية
     const totalQty =
       colors && colors.length > 0
         ? computeTotalQtyFromColors(colors)
         : Number(form.quantity || 0);
-    setForm({
-      name: product.name,
-      buyPrice: product.buyPrice,
-      sellPrice: product.sellPrice,
-      color: product.color || "",
-      sizeType: product.sizeType || "",
-      quantity: product.quantity || "",
-      category: product.category || "",
-      section: product.section || "", // 👈
-      merchantName: product.merchantName || "", // 👈
-    });
 
     const productObj = {
       code: newCode,
@@ -296,8 +285,8 @@ function Products() {
       colors: colors && colors.length > 0 ? colors : null,
       sizeType: form.sizeType || "",
       category: form.category || "",
-      section: form.section || "", // 👈
-      merchantName: form.merchantName || "", // 👈
+      section: form.section || "",
+      merchantName: form.merchantName || "",
       date: Timestamp.now(),
       shop: shop,
       type: "product",
@@ -308,16 +297,17 @@ function Products() {
 
     alert("✅ تم إضافة المنتج بنجاح");
 
+    // تفريغ الفورم
     setForm({
-      name: product.name,
-      buyPrice: product.buyPrice,
-      sellPrice: product.sellPrice,
-      color: product.color || "",
-      sizeType: product.sizeType || "",
-      quantity: product.quantity || "",
-      category: product.category || "",
-      section: product.section || "", // 👈
-      merchantName: product.merchantName || "", // 👈
+      name: "",
+      buyPrice: "",
+      sellPrice: "",
+      color: "",
+      sizeType: "",
+      quantity: "",
+      category: "",
+      section: "",
+      merchantName: "",
     });
 
     setColors([]);
@@ -1012,16 +1002,17 @@ function Products() {
 
                           {/* خيارات */}
                           <td className={styles.actions}>
-                            {userName === "mostafabeso10@gmail.com" || userName === 'mahmoud' && (
-                              <>
-                                <button onClick={() => handleDelete(product)}>
-                                  <FaRegTrashAlt />
-                                </button>
-                                <button onClick={() => handleEdit(product)}>
-                                  <MdOutlineEdit />
-                                </button>
-                              </>
-                            )}
+                            {userName === "mostafabeso10@gmail.com" ||
+                              (userName === "mahmoud" && (
+                                <>
+                                  <button onClick={() => handleDelete(product)}>
+                                    <FaRegTrashAlt />
+                                  </button>
+                                  <button onClick={() => handleEdit(product)}>
+                                    <MdOutlineEdit />
+                                  </button>
+                                </>
+                              ))}
                             <button onClick={() => handlePrintLabel(product)}>
                               🖨️
                             </button>
