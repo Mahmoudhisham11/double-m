@@ -384,6 +384,8 @@ function Products() {
       sizeType: product.sizeType || "",
       quantity: product.quantity || "",
       category: product.category || "",
+      merchantName: product.merchantName || "",
+      section: product.section || "",
     });
     setFinalPrice(product.finalPrice);
 
@@ -891,6 +893,7 @@ function Products() {
                   <tr>
                     <th>الكود</th>
                     <th>الاسم</th>
+                    <th>اسم التاجر</th>
                     <th>سعر الشراء</th>
                     <th>سعر البيع</th>
                     <th>السعر النهائي</th>
@@ -924,6 +927,7 @@ function Products() {
                         <tr key={product.id}>
                           <td>{product.code}</td>
                           <td>{product.name || "-"}</td>
+                          <td>{product.merchantName || "-"}</td>
                           <td>{product.buyPrice || 0} EGP</td>
                           <td>{product.sellPrice || 0} EGP</td>
                           <td>{product.finalPrice} EGP</td>
