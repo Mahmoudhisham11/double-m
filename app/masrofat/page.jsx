@@ -418,16 +418,6 @@ function MasrofatContent() {
               <button className={styles.addBtn} onClick={handleAddMasrof}>
                 إضافة المصروف
               </button>
-              <button
-                className={styles.cancelBtn}
-                onClick={() => {
-                  setActive(false);
-                  setMasrof("");
-                  setReason("");
-                }}
-              >
-                إلغاء
-              </button>
             </div>
           </div>
         )}

@@ -1,14 +1,13 @@
 "use client";
 import SideBar from "@/components/SideBar/page";
 import styles from "./styles.module.css";
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { CiSearch, CiPhone } from "react-icons/ci";
 import { FaRegTrashAlt } from "react-icons/fa";
 import { GiMoneyStack } from "react-icons/gi";
 import { MdDriveFileRenameOutline } from "react-icons/md";
 import { FaPlus } from "react-icons/fa6";
 import { FaEye } from "react-icons/fa";
-import { FaEllipsisVertical } from "react-icons/fa6";
 import { db } from "@/app/firebase";
 import {
   addDoc,
@@ -52,9 +51,6 @@ function DebtsContent() {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [openDropdownId, setOpenDropdownId] = useState(null);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
-  const buttonRefs = useRef({});
 
   const shop =
     typeof window !== "undefined" ? localStorage.getItem("shop") : "";
@@ -178,117 +174,6 @@ function DebtsContent() {
   useEffect(() => {
     setSelectedIds(new Set());
   }, [filteredCustomers]);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    let timeoutId = null;
-
-    const handleClickOutside = (event) => {
-      if (!openDropdownId) return;
-      
-      // Check if click is outside both the dropdown menu and the toggle button
-      const dropdownMenu = document.querySelector(`.${styles.dropdownMenu}`);
-      const toggleButton = buttonRefs.current[openDropdownId];
-      
-      if (dropdownMenu && toggleButton) {
-        const isClickInsideMenu = dropdownMenu.contains(event.target);
-        const isClickOnToggle = toggleButton.contains(event.target);
-        
-        // Only close if click is truly outside
-        if (!isClickInsideMenu && !isClickOnToggle) {
-          // Small delay to allow for hover events
-          if (timeoutId) clearTimeout(timeoutId);
-          timeoutId = setTimeout(() => {
-            setOpenDropdownId(null);
-          }, 50);
-        } else {
-          // Cancel timeout if clicking inside
-          if (timeoutId) clearTimeout(timeoutId);
-        }
-      }
-    };
-
-    const handleMouseMove = () => {
-      // Cancel any pending close when mouse moves (hovering)
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-
-    if (openDropdownId) {
-      // Use click instead of mousedown to avoid closing on hover
-      document.addEventListener("click", handleClickOutside, true);
-      document.addEventListener("mousemove", handleMouseMove, true);
-      // Also listen to touchstart for mobile
-      document.addEventListener("touchstart", handleClickOutside, true);
-      
-      return () => {
-        if (timeoutId) clearTimeout(timeoutId);
-        document.removeEventListener("click", handleClickOutside, true);
-        document.removeEventListener("mousemove", handleMouseMove, true);
-        document.removeEventListener("touchstart", handleClickOutside, true);
-      };
-    }
-  }, [openDropdownId]);
-
-  // Update dropdown position on scroll or resize
-  useEffect(() => {
-    if (!openDropdownId) return;
-
-    const updatePosition = () => {
-      const button = buttonRefs.current[openDropdownId];
-      if (!button) return;
-
-      const rect = button.getBoundingClientRect();
-      const menuWidth = 240;
-      const menuHeight = 200; // Approximate height, will adjust
-      
-      // Calculate right position: align menu's right edge with button's right edge
-      const rightPosition = window.innerWidth - rect.right;
-      
-      // Ensure menu doesn't go off screen on the left
-      let finalRight = rightPosition;
-      if (rect.right < menuWidth) {
-        finalRight = window.innerWidth - menuWidth - 8;
-      }
-      
-      // Position menu above the button
-      let finalTop = rect.top - menuHeight - 8;
-      
-      // If menu would go off screen at top, position it below button instead
-      if (finalTop < 8) {
-        finalTop = rect.bottom + 8;
-      }
-      
-      setDropdownPosition({
-        top: finalTop,
-        right: finalRight
-      });
-    };
-
-    // Update position immediately
-    updatePosition();
-
-    // Listen to scroll on all scrollable parents
-    const scrollableParents = [];
-    let parent = buttonRefs.current[openDropdownId]?.parentElement;
-    while (parent && parent !== document.body) {
-      if (parent.scrollHeight > parent.clientHeight || parent.scrollWidth > parent.clientWidth) {
-        scrollableParents.push(parent);
-        parent.addEventListener('scroll', updatePosition, { passive: true });
-      }
-      parent = parent.parentElement;
-    }
-
-    window.addEventListener('scroll', updatePosition, { passive: true, capture: true });
-    window.addEventListener('resize', updatePosition);
-
-    return () => {
-      window.removeEventListener('scroll', updatePosition, { capture: true });
-      window.removeEventListener('resize', updatePosition);
-      scrollableParents.forEach(parent => {
-        parent.removeEventListener('scroll', updatePosition);
-      });
-    };
-  }, [openDropdownId]);
 
   const handleAddProduct = async () => {
     if (!form.name || !form.phone || !form.debt) {
@@ -917,7 +802,6 @@ function DebtsContent() {
                           : "-"}
                       </td>
                       <td className={styles.actionsCell}>
-                        {/* Desktop Actions */}
                         <div className={styles.actionButtons}>
                           <button
                             className={styles.payBtn}
@@ -948,142 +832,6 @@ function DebtsContent() {
                           >
                             <FaRegTrashAlt />
                           </button>
-                        </div>
-                        
-                        {/* Mobile Dropdown */}
-                        <div className={styles.mobileActions}>
-                          {(!openDropdownId || openDropdownId === customer.id) && (
-                            <button
-                              ref={(el) => {
-                                if (el) buttonRefs.current[customer.id] = el;
-                              }}
-                              className={styles.dropdownToggle}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const button = buttonRefs.current[customer.id];
-                              if (!button) return;
-                              
-                              const isOpening = openDropdownId !== customer.id;
-                              
-                              if (isOpening) {
-                                // Calculate position immediately
-                                const rect = button.getBoundingClientRect();
-                                const menuWidth = 240;
-                                const menuHeight = 200; // Approximate height
-                                
-                                // Calculate right position: align menu's right edge with button's right edge
-                                const rightPosition = window.innerWidth - rect.right;
-                                
-                                // Ensure menu doesn't go off screen on the left
-                                let finalRight = rightPosition;
-                                if (rect.right < menuWidth) {
-                                  finalRight = window.innerWidth - menuWidth - 8;
-                                }
-                                
-                                // Position menu above the button
-                                let finalTop = rect.top - menuHeight - 8;
-                                
-                                // If menu would go off screen at top, position it below button instead
-                                if (finalTop < 8) {
-                                  finalTop = rect.bottom + 8;
-                                }
-                                
-                                setDropdownPosition({
-                                  top: finalTop,
-                                  right: finalRight
-                                });
-                                
-                                // Open dropdown immediately
-                                setOpenDropdownId(customer.id);
-                              } else {
-                                // Close dropdown
-                                setOpenDropdownId(null);
-                              }
-                            }}
-                            title="خيارات"
-                          >
-                            <FaEllipsisVertical />
-                          </button>
-                          )}
-                          {openDropdownId === customer.id && (
-                            <>
-                              <div
-                                className={styles.dropdownOverlay}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setOpenDropdownId(null);
-                                }}
-                                onTouchStart={(e) => {
-                                  e.stopPropagation();
-                                  setOpenDropdownId(null);
-                                }}
-                                onMouseDown={(e) => {
-                                  e.stopPropagation();
-                                }}
-                              />
-                              <div 
-                                className={styles.dropdownMenu}
-                                style={{
-                                  top: `${dropdownPosition.top}px`,
-                                  right: `${dropdownPosition.right}px`
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                                onTouchStart={(e) => e.stopPropagation()}
-                                onMouseDown={(e) => e.stopPropagation()}
-                                onMouseEnter={(e) => e.stopPropagation()}
-                              >
-                                <button
-                                  className={styles.dropdownItem}
-                                  onClick={() => {
-                                    openPaymentModal(customer);
-                                    setOpenDropdownId(null);
-                                  }}
-                                >
-                                  <span className={styles.dropdownIcon}>
-                                    <GiMoneyStack />
-                                  </span>
-                                  سداد
-                                </button>
-                                <button
-                                  className={styles.dropdownItem}
-                                  onClick={() => {
-                                    openIncreaseModal(customer);
-                                    setOpenDropdownId(null);
-                                  }}
-                                >
-                                  <span className={styles.dropdownIcon}>
-                                    <FaPlus />
-                                  </span>
-                                  زيادة
-                                </button>
-                                <button
-                                  className={styles.dropdownItem}
-                                  onClick={() => {
-                                    openDetailsPopup(customer);
-                                    setOpenDropdownId(null);
-                                  }}
-                                >
-                                  <span className={styles.dropdownIcon}>
-                                    <FaEye />
-                                  </span>
-                                  عرض التفاصيل
-                                </button>
-                                <button
-                                  className={`${styles.dropdownItem} ${styles.dropdownItemDanger}`}
-                                  onClick={() => {
-                                    handleDeleteSingle(customer.id);
-                                    setOpenDropdownId(null);
-                                  }}
-                                  disabled={isDeleting}
-                                >
-                                  <span className={styles.dropdownIcon}>
-                                    <FaRegTrashAlt />
-                                  </span>
-                                  حذف
-                                </button>
-                              </div>
-                            </>
-                          )}
                         </div>
                       </td>
                     </tr>

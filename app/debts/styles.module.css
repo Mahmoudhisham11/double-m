@@ -950,55 +950,27 @@
     max-height: 85vh;
   }
 
-  /* Hide desktop buttons and show mobile dropdown on mobile */
+  /* Show action buttons on mobile with smaller size */
   .actionButtons {
-    display: none !important;
-  }
-
-  .mobileActions {
     display: flex !important;
-    width: 100%;
+    gap: 4px;
+    flex-wrap: wrap;
     justify-content: center;
-    align-items: center;
   }
 
-  .dropdownToggle {
-    width: 44px;
-    height: 44px;
-    font-size: 20px;
+  .payBtn {
+    font-size: 11px !important;
+    padding: 6px 10px !important;
+    min-width: auto !important;
   }
 
-  .dropdownMenu {
-    min-width: 200px;
-    max-width: 260px;
-    z-index: 10003;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 8px 24px rgba(0, 0, 0, 0.1);
-    padding: 8px;
-  }
-
-  .dropdownItem {
-    padding: 12px 14px;
-    font-size: 15px;
-    min-height: 44px;
-    gap: 12px;
-  }
-
-  .dropdownIcon {
-    width: 22px;
-    height: 22px;
-    font-size: 18px;
-  }
-
-  .actionsCell {
-    position: relative;
-    z-index: 1;
-  }
-  
-  .dropdownToggle {
-    z-index: 1;
-  }
-  
-  .dropdownMenu {
-    z-index: 10001;
+  .increaseBtn,
+  .detailsBtn,
+  .deleteBtn {
+    width: 32px !important;
+    height: 32px !important;
+    padding: 0 !important;
+    font-size: 12px !important;
+    min-width: 32px !important;
   }
 }
