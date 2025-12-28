@@ -33,6 +33,7 @@ function MasrofatContent() {
   const [auth, setAuth] = useState(false);
   const [loading, setLoading] = useState(true);
   const [active, setActive] = useState(false);
+  const [isReturnExpense, setIsReturnExpense] = useState(false);
   const [masrof, setMasrof] = useState("");
   const [reason, setReason] = useState("");
   const [shop, setShop] = useState("");
@@ -146,7 +147,10 @@ function MasrofatContent() {
 
   // إضافة مصروف جديد
   const handleAddMasrof = async () => {
-    if (!masrof || !reason) {
+    // في حالة المرتجع، السبب تلقائي
+    const finalReason = isReturnExpense ? "فاتورة مرتجع" : reason;
+    
+    if (!masrof || (!isReturnExpense && !reason)) {
       showError("يرجى ملء كل الحقول");
       return;
     }
@@ -187,7 +191,7 @@ function MasrofatContent() {
     try {
       await addDoc(collection(db, "masrofat"), {
         masrof: masrofValue,
-        reason,
+        reason: finalReason,
         date: formattedDate,
         shop,
       });
@@ -196,6 +200,7 @@ function MasrofatContent() {
       setMasrof("");
       setReason("");
       setActive(false);
+      setIsReturnExpense(false);
     } catch (error) {
       console.error("خطأ أثناء الإضافة:", error);
       showError("حدث خطأ أثناء إضافة المصروف");
@@ -350,6 +355,7 @@ function MasrofatContent() {
             <button
               onClick={() => {
                 setActive(!active);
+                setIsReturnExpense(false);
                 setEditingMasrof(null);
                 setMasrof("");
                 setReason("");
@@ -357,6 +363,18 @@ function MasrofatContent() {
               className={styles.addBtn}
             >
               {active ? "إلغاء" : "+ إضافة مصروف"}
+            </button>
+            <button
+              onClick={() => {
+                setActive(true);
+                setIsReturnExpense(true);
+                setEditingMasrof(null);
+                setMasrof("");
+                setReason("");
+              }}
+              className={styles.returnBtn}
+            >
+              مصروف مرتجع
             </button>
           </div>
         </div>
@@ -402,22 +420,51 @@ function MasrofatContent() {
                   onChange={(e) => setMasrof(e.target.value)}
                 />
               </div>
-              <div className="inputContainer">
-                <label>
-                  <FaQuestion />
-                </label>
-                <input
-                  type="text"
-                  placeholder="السبب"
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                />
-              </div>
+              {!isReturnExpense && (
+                <div className="inputContainer">
+                  <label>
+                    <FaQuestion />
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="السبب"
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                  />
+                </div>
+              )}
+              {isReturnExpense && (
+                <div className="inputContainer">
+                  <label>
+                    <FaQuestion />
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="السبب"
+                    value="فاتورة مرتجع"
+                    disabled
+                    style={{ opacity: 0.7, cursor: "not-allowed" }}
+                  />
+                </div>
+              )}
             </div>
             <div className={styles.actionButtonsContainer}>
               <button className={styles.addBtn} onClick={handleAddMasrof}>
-                إضافة المصروف
+                {isReturnExpense ? "إضافة مصروف مرتجع" : "إضافة المصروف"}
               </button>
+              {isReturnExpense && (
+                <button
+                  className={styles.cancelBtn}
+                  onClick={() => {
+                    setActive(false);
+                    setIsReturnExpense(false);
+                    setMasrof("");
+                    setReason("");
+                  }}
+                >
+                  إلغاء
+                </button>
+              )}
             </div>
           </div>
         )}

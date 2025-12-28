@@ -142,7 +142,7 @@ function CloseDayContent() {
   // Calculate totals with useMemo
   const totals = useMemo(() => {
     if (!selectedClose)
-      return { totalSales: 0, totalExpenses: 0, net: 0, profit: 0 };
+      return { totalSales: 0, totalExpenses: 0, net: 0, profit: 0, netProfit: 0 };
 
     const salesArr = Array.isArray(selectedClose.sales)
       ? selectedClose.sales
@@ -161,14 +161,26 @@ function CloseDayContent() {
       return sum + (isNaN(p) ? 0 : p);
     }, 0);
 
+    // حساب إجمالي المصروفات (شامل كل المصروفات)
     const totalExpenses = masrofArr.reduce((sum, m) => {
       const v = Number(m.masrof ?? m.amount ?? 0);
       return sum + (isNaN(v) ? 0 : v);
     }, 0);
 
-    const net = totalSales - totalExpenses;
+    // حساب المصروفات بدون "فاتورة مرتجع" (لحساب صافي الربح)
+    const totalExpensesWithoutReturn = masrofArr.reduce((sum, m) => {
+      // استبعاد المصروفات التي سببها "فاتورة مرتجع"
+      if (m.reason === "فاتورة مرتجع") {
+        return sum;
+      }
+      const v = Number(m.masrof ?? m.amount ?? 0);
+      return sum + (isNaN(v) ? 0 : v);
+    }, 0);
 
-    return { totalSales, totalExpenses, net, profit };
+    const net = totalSales - totalExpenses;
+    const netProfit = profit - totalExpensesWithoutReturn;
+
+    return { totalSales, totalExpenses, net, profit, netProfit };
   }, [selectedClose]);
 
   const isAdmin = currentUser === ADMIN_USER;
@@ -360,12 +372,20 @@ function CloseDayContent() {
             </div>
 
             {isAdmin && (
-              <div className={styles.summaryCard}>
-                <span className={styles.summaryLabel}>الربح</span>
-                <span className={styles.summaryValue}>
-                  {totals.profit.toFixed(2)} EGP
-                </span>
-              </div>
+              <>
+                <div className={styles.summaryCard}>
+                  <span className={styles.summaryLabel}>الربح</span>
+                  <span className={styles.summaryValue}>
+                    {totals.profit.toFixed(2)} EGP
+                  </span>
+                </div>
+                <div className={styles.summaryCard}>
+                  <span className={styles.summaryLabel}>صافي الربح</span>
+                  <span className={styles.summaryValue}>
+                    {totals.netProfit.toFixed(2)} EGP
+                  </span>
+                </div>
+              </>
             )}
 
             <div className={styles.summaryCard}>

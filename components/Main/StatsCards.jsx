@@ -7,7 +7,8 @@ export default function StatsCards({
   invoices, 
   totalMasrofat, 
   isHidden, 
-  userName 
+  userName,
+  onTopEmployeeClick
 }) {
   const stats = useMemo(() => {
     const totalSales = invoices.reduce((sum, i) => sum + (i.total || 0), 0);
@@ -75,15 +76,31 @@ export default function StatsCards({
       </div>
       
       {canViewProfit && (
-        <div className={styles.summaryCard}>
-          <span className={styles.summaryLabel}>صافي الربح</span>
-          <span className={styles.summaryValue}>
-            {isHidden ? "****" : `${stats.netProfit} جنيه`}
-          </span>
-        </div>
+        <>
+          <div className={styles.summaryCard}>
+            <span className={styles.summaryLabel}>الربح</span>
+            <span className={styles.summaryValue}>
+              {isHidden ? "****" : `${stats.finalProfit} جنيه`}
+            </span>
+          </div>
+          <div className={styles.summaryCard}>
+            <span className={styles.summaryLabel}>صافي الربح</span>
+            <span className={styles.summaryValue}>
+              {isHidden ? "****" : `${stats.netProfit} جنيه`}
+            </span>
+          </div>
+        </>
       )}
       
-      <div className={styles.summaryCard}>
+      <div 
+        className={styles.summaryCard}
+        style={{ cursor: stats.topEmployee !== "لا يوجد موظفين" ? "pointer" : "default" }}
+        onClick={() => {
+          if (stats.topEmployee !== "لا يوجد موظفين" && onTopEmployeeClick) {
+            onTopEmployeeClick(stats.topEmployee);
+          }
+        }}
+      >
         <span className={styles.summaryLabel}>أنشط موظف</span>
         <span className={styles.summaryValue}>{isHidden ? "****" : stats.topEmployee}</span>
       </div>

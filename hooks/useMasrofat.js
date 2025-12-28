@@ -41,7 +41,17 @@ export function useMasrofat(shop) {
     fetchMasrofat();
   }, [shop]);
 
-  const totalMasrofat = masrofat.reduce(
+  // حساب إجمالي المصروفات بدون "فاتورة مرتجع"
+  const totalMasrofat = masrofat.reduce((sum, item) => {
+    // استبعاد المصروفات التي سببها "فاتورة مرتجع"
+    if (item.reason === "فاتورة مرتجع") {
+      return sum;
+    }
+    return sum + Number(item.masrof || 0);
+  }, 0);
+
+  // إجمالي المصروفات الكامل (شامل المرتجع)
+  const totalMasrofatWithReturn = masrofat.reduce(
     (sum, item) => sum + Number(item.masrof || 0),
     0
   );
@@ -51,5 +61,6 @@ export function useMasrofat(shop) {
     loading,
     error,
     totalMasrofat,
+    totalMasrofatWithReturn,
   };
 }

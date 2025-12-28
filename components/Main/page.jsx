@@ -30,6 +30,7 @@ import ConfirmModal from "./Modals/ConfirmModal";
 import PasswordModal from "./Modals/PasswordModal";
 import SuspendInvoiceModal from "./Modals/SuspendInvoiceModal";
 import SuspendedInvoicesModal from "./Modals/SuspendedInvoicesModal";
+import EmployeeStatsModal from "./Modals/EmployeeStatsModal";
 import { useInvoiceReturn } from "./hooks/useInvoiceReturn";
 import { FaBookmark, FaBook } from "react-icons/fa";
 
@@ -56,6 +57,8 @@ function MainContent() {
   const [showSuspendModal, setShowSuspendModal] = useState(false);
   const [showSuspendedInvoicesModal, setShowSuspendedInvoicesModal] = useState(false);
   const [suspendedInvoices, setSuspendedInvoices] = useState([]);
+  const [showEmployeeStatsModal, setShowEmployeeStatsModal] = useState(false);
+  const [selectedEmployeeStats, setSelectedEmployeeStats] = useState(null);
 
   const shop = typeof window !== "undefined" ? localStorage.getItem("shop") : "";
   const userName = typeof window !== "undefined" ? localStorage.getItem("userName") : "";
@@ -545,6 +548,45 @@ function MainContent() {
     success(`✅ تم حذف الفاتورة المعلقة للعميل: ${invoice?.clientName || "غير معروف"}`);
   }, [suspendedInvoices, success]);
 
+  // Handle top employee click
+  const handleTopEmployeeClick = useCallback((employeeName) => {
+    // حساب إحصائيات الموظف لليوم
+    const today = new Date();
+    const todayStr = `${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`;
+    
+    // تصفية الفواتير للموظف بتاريخ اليوم
+    const todayInvoices = filteredInvoices.filter((invoice) => {
+      if (invoice.employee !== employeeName) return false;
+      
+      // التحقق من التاريخ
+      const invoiceDate = invoice.date?.toDate 
+        ? invoice.date.toDate() 
+        : (invoice.date?.seconds ? new Date(invoice.date.seconds * 1000) : null);
+      
+      if (!invoiceDate) return false;
+      
+      const invoiceDateStr = `${String(invoiceDate.getDate()).padStart(2, "0")}/${String(invoiceDate.getMonth() + 1).padStart(2, "0")}/${invoiceDate.getFullYear()}`;
+      return invoiceDateStr === todayStr;
+    });
+
+    // حساب الإحصائيات
+    const stats = {
+      invoiceCount: todayInvoices.length,
+      totalItems: todayInvoices.reduce((sum, invoice) => {
+        return sum + (invoice.cart || []).reduce((itemSum, item) => {
+          return itemSum + (item.quantity || 0);
+        }, 0);
+      }, 0),
+      totalSales: todayInvoices.reduce((sum, invoice) => sum + (invoice.total || 0), 0),
+    };
+
+    setSelectedEmployeeStats({
+      name: employeeName,
+      stats,
+    });
+    setShowEmployeeStatsModal(true);
+  }, [filteredInvoices]);
+
   const finalTotal = calculateFinalTotal(subtotal, appliedDiscount);
 
   return (
@@ -591,6 +633,7 @@ function MainContent() {
           totalMasrofat={totalMasrofat}
           isHidden={isHidden}
           userName={userName}
+          onTopEmployeeClick={handleTopEmployeeClick}
         />
 
         <InvoiceList
@@ -709,6 +752,16 @@ function MainContent() {
         suspendedInvoices={suspendedInvoices}
         onRestore={handleRestoreInvoice}
         onDelete={handleDeleteSuspendedInvoice}
+      />
+
+      <EmployeeStatsModal
+        isOpen={showEmployeeStatsModal}
+        onClose={() => {
+          setShowEmployeeStatsModal(false);
+          setSelectedEmployeeStats(null);
+        }}
+        employeeName={selectedEmployeeStats?.name || ""}
+        stats={selectedEmployeeStats?.stats || { invoiceCount: 0, totalItems: 0, totalSales: 0 }}
       />
     </div>
   );

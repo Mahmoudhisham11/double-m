@@ -48,6 +48,7 @@ function DebtsContent() {
   });
 
   const [customers, setCustomers] = useState([]);
+  const [paymentsByDate, setPaymentsByDate] = useState([]); // عمليات السداد/الزيادة حسب التاريخ
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -141,6 +142,56 @@ function DebtsContent() {
     return () => unsubscribe();
   }, [shop]);
 
+  // جلب عمليات السداد/الزيادة عند البحث بالتاريخ
+  useEffect(() => {
+    if (!shop || !searchCode) {
+      setPaymentsByDate([]);
+      return;
+    }
+
+    const fetchPaymentsByDate = async () => {
+      try {
+        // تحويل searchCode (YYYY-MM-DD) إلى تاريخ
+        // searchCode format: YYYY-MM-DD
+        const [year, month, day] = searchCode.split("-").map(Number);
+        const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
+        const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
+
+        const q = query(
+          collection(db, "debtsPayments"),
+          where("shop", "==", shop)
+        );
+        const snapshot = await getDocs(q);
+        
+        const payments = snapshot.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() }))
+          .filter((p) => {
+            if (!p.date) return false;
+            const paymentDate = p.date.toDate ? p.date.toDate() : new Date(p.date);
+            // مقارنة التاريخ فقط (بدون الوقت)
+            const paymentDateOnly = new Date(
+              paymentDate.getFullYear(),
+              paymentDate.getMonth(),
+              paymentDate.getDate()
+            );
+            const searchDateOnly = new Date(
+              startOfDay.getFullYear(),
+              startOfDay.getMonth(),
+              startOfDay.getDate()
+            );
+            return paymentDateOnly.getTime() === searchDateOnly.getTime();
+          });
+
+        setPaymentsByDate(payments);
+      } catch (error) {
+        console.error("خطأ أثناء جلب عمليات السداد/الزيادة:", error);
+        setPaymentsByDate([]);
+      }
+    };
+
+    fetchPaymentsByDate();
+  }, [shop, searchCode]);
+
   const filteredCustomers = useMemo(() => {
     return customers.filter((c) => {
       if (!c.date) return false;
@@ -154,14 +205,13 @@ function DebtsContent() {
         if (!matchesSearch) return false;
       }
 
-      // البحث بالتاريخ
+      // البحث بالتاريخ - البحث في عمليات السداد/الزيادة
       if (searchCode) {
-        const dateObj = c.date.toDate ? c.date.toDate() : new Date(c.date);
-        const day = String(dateObj.getDate()).padStart(2, "0");
-        const month = String(dateObj.getMonth() + 1).padStart(2, "0");
-        const year = dateObj.getFullYear();
-        const dateStr = `${year}-${month}-${day}`;
-        if (!dateStr.includes(searchCode)) return false;
+        // البحث في عمليات السداد/الزيادة في التاريخ المحدد
+        const hasPaymentOnDate = paymentsByDate.some(
+          (p) => p.debtid === c.id
+        );
+        if (!hasPaymentOnDate) return false;
       } else {
         // بدون تاريخ، اعرض بس العملاء اللي عندهم دين > 0
         if (Number(c.debt || 0) <= 0) return false;
@@ -169,7 +219,7 @@ function DebtsContent() {
 
       return true;
     });
-  }, [customers, searchCode, searchText]);
+  }, [customers, searchCode, searchText, paymentsByDate]);
 
   useEffect(() => {
     setSelectedIds(new Set());
@@ -405,6 +455,21 @@ function DebtsContent() {
       if (!debtData.aslDebt) {
         await updateDoc(debtRef, { aslDebt: currentDebt });
       }
+
+      // ===== تسجيل عملية الزيادة في debtsPayments =====
+      await addDoc(collection(db, "debtsPayments"), {
+        name: debtData.name || increaseCustomer.name || "",
+        phone: debtData.phone || increaseCustomer.phone || "",
+        paidAmount: amount, // المبلغ المضاف
+        previousDebt: currentDebt,
+        remainingDebt: newDebt,
+        debtid: increaseCustomer.id,
+        date: new Date(),
+        userName: localStorage.getItem("userName"),
+        shop: shop,
+        source: "زيادة", // نوع العملية
+        type: "زيادة", // حقل إضافي لتحديد نوع العملية
+      });
 
       success(`تم زيادة الدين بنجاح. الدين الجديد: ${newDebt} EGP`);
       closeIncreaseModal();
@@ -976,7 +1041,7 @@ function DebtsContent() {
         <div className={styles.modalOverlay} onClick={closeDetailsPopup}>
           <div className={styles.detailsModal} onClick={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
-              <h3>تفاصيل السداد</h3>
+              <h3>تفاصيل السداد والزيادة</h3>
               <button className={styles.closeBtn} onClick={closeDetailsPopup}>
                 ×
               </button>
@@ -988,89 +1053,114 @@ function DebtsContent() {
                 </p>
               </div>
               {detailsPayments.length === 0 ? (
-                <p className={styles.emptyText}>لا توجد مدفوعات لهذا العميل.</p>
+                <p className={styles.emptyText}>لا توجد عمليات سداد أو زيادة لهذا العميل.</p>
               ) : (
                 <div className={styles.detailsTableWrapper}>
                   <table className={styles.detailsTable}>
                     <thead>
                       <tr>
                         <th>المستخدم</th>
-                        <th>المبلغ المدفوع</th>
-                        <th>المتبقي بعد السداد</th>
+                        <th>المبلغ</th>
+                        <th>المتبقي</th>
                         <th>التاريخ</th>
+                        <th>نوع العملية</th>
                         <th>مصدر السداد</th>
                         <th>حذف</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {detailsPayments.map((p) => (
-                        <tr key={p.id}>
-                          <td>{p.userName || "-"}</td>
-                          <td>{p.paidAmount} EGP</td>
-                          <td>{p.remainingDebt} EGP</td>
-                          <td>
-                            {p.date?.toDate
-                              ? p.date.toDate().toLocaleDateString("ar-EG")
-                              : new Date(p.date).toLocaleDateString("ar-EG")}
-                          </td>
-                          <td>{p.source}</td>
-                          <td>
-                            <button
-                              className={styles.deletePaymentBtn}
-                              onClick={async () => {
-                                try {
-                                  const paymentRef = doc(db, "debtsPayments", p.id);
-                                  const paymentSnap = await getDoc(paymentRef);
-                                  if (!paymentSnap.exists()) {
-                                    showError("السداد غير موجود");
-                                    return;
-                                  }
-                                  const paymentData = paymentSnap.data();
+                      {detailsPayments.map((p) => {
+                        const isIncrease = p.type === "زيادة" || p.source === "زيادة";
+                        return (
+                          <tr key={p.id}>
+                            <td>{p.userName || "-"}</td>
+                            <td>{p.paidAmount} EGP</td>
+                            <td>{p.remainingDebt} EGP</td>
+                            <td>
+                              {p.date?.toDate
+                                ? p.date.toDate().toLocaleDateString("ar-EG")
+                                : new Date(p.date).toLocaleDateString("ar-EG")}
+                            </td>
+                            <td>
+                              <span style={{ 
+                                color: isIncrease ? "#ff9800" : "#2e7d32",
+                                fontWeight: 600 
+                              }}>
+                                {isIncrease ? "زيادة" : "سداد"}
+                              </span>
+                            </td>
+                            <td>{isIncrease ? "-" : (p.source || "-")}</td>
+                            <td>
+                              <button
+                                className={styles.deletePaymentBtn}
+                                onClick={async () => {
+                                  try {
+                                    const paymentRef = doc(db, "debtsPayments", p.id);
+                                    const paymentSnap = await getDoc(paymentRef);
+                                    if (!paymentSnap.exists()) {
+                                      showError("العملية غير موجودة");
+                                      return;
+                                    }
+                                    const paymentData = paymentSnap.data();
+                                    const isIncreaseOperation = paymentData.type === "زيادة" || paymentData.source === "زيادة";
 
-                                  await deleteDoc(paymentRef);
+                                    await deleteDoc(paymentRef);
 
-                                  const debtRef = doc(db, "debts", paymentData.debtid);
-                                  const debtSnap = await getDoc(debtRef);
+                                    const debtRef = doc(db, "debts", paymentData.debtid);
+                                    const debtSnap = await getDoc(debtRef);
 
-                                  if (debtSnap.exists()) {
-                                    const currentDebt = Number(debtSnap.data().debt || 0);
-                                    const paidAmount = Number(paymentData.paidAmount || 0);
-                                    await updateDoc(debtRef, {
-                                      debt: currentDebt + paidAmount,
-                                    });
-                                  } else {
-                                    showError("❌ الدين الأصلي غير موجود");
-                                    return;
-                                  }
+                                    if (debtSnap.exists()) {
+                                      const currentDebt = Number(debtSnap.data().debt || 0);
+                                      const amount = Number(paymentData.paidAmount || 0);
+                                      
+                                      // إذا كانت عملية زيادة، نخصم المبلغ من الدين
+                                      // إذا كانت عملية سداد، نضيف المبلغ للدين
+                                      const newDebt = isIncreaseOperation 
+                                        ? currentDebt - amount 
+                                        : currentDebt + amount;
+                                      
+                                      await updateDoc(debtRef, {
+                                        debt: Math.max(0, newDebt), // التأكد من أن الدين لا يكون سالب
+                                      });
+                                    } else {
+                                      showError("❌ الدين الأصلي غير موجود");
+                                      return;
+                                    }
 
-                                  if (paymentData.source === "خزنة") {
-                                    const profitQuery = query(
-                                      collection(db, "dailyProfit"),
-                                      where("debtPaymentId", "==", p.id)
+                                    // حذف من dailyProfit فقط إذا كانت عملية سداد من الخزنة
+                                    if (paymentData.source === "خزنة" && !isIncreaseOperation) {
+                                      const profitQuery = query(
+                                        collection(db, "dailyProfit"),
+                                        where("debtPaymentId", "==", p.id)
+                                      );
+                                      const profitSnapshot = await getDocs(profitQuery);
+                                      const deleteProfitPromises = profitSnapshot.docs.map((docSnap) =>
+                                        deleteDoc(docSnap.ref)
+                                      );
+                                      await Promise.all(deleteProfitPromises);
+                                    }
+
+                                    setDetailsPayments((prev) =>
+                                      prev.filter((item) => item.id !== p.id)
                                     );
-                                    const profitSnapshot = await getDocs(profitQuery);
-                                    const deleteProfitPromises = profitSnapshot.docs.map((docSnap) =>
-                                      deleteDoc(docSnap.ref)
+
+                                    success(
+                                      isIncreaseOperation
+                                        ? "✅ تم حذف عملية الزيادة وخصم المبلغ من الدين بنجاح"
+                                        : "✅ تم حذف السداد وإرجاع المبلغ للدين بنجاح"
                                     );
-                                    await Promise.all(deleteProfitPromises);
+                                  } catch (err) {
+                                    console.error(err);
+                                    showError("❌ حدث خطأ أثناء الحذف");
                                   }
-
-                                  setDetailsPayments((prev) =>
-                                    prev.filter((item) => item.id !== p.id)
-                                  );
-
-                                  success("✅ تم حذف السداد وإرجاع المبلغ للدين بنجاح");
-                                } catch (err) {
-                                  console.error(err);
-                                  showError("❌ حدث خطأ أثناء الحذف");
-                                }
-                              }}
-                            >
-                              <FaRegTrashAlt />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                                }}
+                              >
+                                <FaRegTrashAlt />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

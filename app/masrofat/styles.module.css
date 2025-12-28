@@ -101,6 +101,42 @@
   cursor: not-allowed;
 }
 
+.returnBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: linear-gradient(
+    135deg,
+    #ff9800,
+    #f57c00
+  );
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
+  font-family: "Tajawal", sans-serif;
+}
+
+.returnBtn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  background: linear-gradient(
+    135deg,
+    #f57c00,
+    #e65100
+  );
+}
+
+.returnBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .summaryCards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));

@@ -29,8 +29,11 @@ function ProfitContent() {
   const [reports, setReports] = useState([]);
   const [withdraws, setWithdraws] = useState([]);
   const [dailyProfitData, setDailyProfitData] = useState([]);
+  const [masrofat, setMasrofat] = useState([]);
   const [cashTotal, setCashTotal] = useState(0);
   const [profit, setProfit] = useState(0);
+  const [grossProfit, setGrossProfit] = useState(0);
+  const [netProfit, setNetProfit] = useState(0);
   const [mostafaBalance, setMostafaBalance] = useState(0);
   const [midoBalance, setMidoBalance] = useState(0);
   const [doubleMBalance, setDoubleMBalance] = useState(0);
@@ -176,6 +179,14 @@ function ProfitContent() {
       setDailyProfitData(
         dailyProfitSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
       );
+
+      // Fetch masrofat (expenses)
+      const masrofatSnap = await getDocs(
+        query(collection(db, "masrofat"), where("shop", "==", shop))
+      );
+      setMasrofat(
+        masrofatSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+      );
     } catch (error) {
       console.error("Error fetching data:", error);
       showError("حدث خطأ أثناء جلب البيانات");
@@ -232,17 +243,39 @@ function ProfitContent() {
       }
     );
 
+    const unsubscribeMasrofat = onSnapshot(
+      query(collection(db, "masrofat"), where("shop", "==", shop)),
+      (snapshot) => {
+        setMasrofat(
+          snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+        );
+      },
+      (error) => {
+        console.error("Error in masrofat subscription:", error);
+        showError("حدث خطأ أثناء تحديث المصروفات");
+      }
+    );
+
     return () => {
       unsubscribeReports();
       unsubscribeWithdraws();
       unsubscribeDailyProfit();
+      unsubscribeMasrofat();
     };
   }, [shop, showError]);
 
   // Calculate totals with useMemo
   const calculatedTotals = useMemo(() => {
     if (!shop)
-      return { cashTotal: 0, profit: 0, mostafa: 0, mido: 0, doubleM: 0 };
+      return { 
+        cashTotal: 0, 
+        profit: 0, 
+        grossProfit: 0,
+        netProfit: 0,
+        mostafa: 0, 
+        mido: 0, 
+        doubleM: 0 
+      };
 
     const from = dateFrom
       ? new Date(dateFrom + "T00:00:00")
@@ -272,6 +305,12 @@ function ProfitContent() {
       return wDate && wDate >= effectiveFrom && wDate <= to;
     });
 
+    // تصفية المصروفات حسب التاريخ
+    const filteredMasrofat = masrofat.filter((m) => {
+      const mDate = parseDate(m.date) || parseDate(m.createdAt);
+      return mDate && mDate >= effectiveFrom && mDate <= to;
+    });
+
     const totalMasrofat = dailyForCash.reduce(
       (sum, d) => sum + (d.totalMasrofat || 0),
       0
@@ -295,18 +334,27 @@ function ProfitContent() {
       }
     });
 
-    let remainingProfit = 0;
+    // حساب الربح الإجمالي = إجمالي بيع الفواتير (total sales)
+    let grossProfitValue = 0;
     filteredReports.forEach((r) => {
-      if (!r.cart || !Array.isArray(r.cart)) return;
-      const reportProfit = r.cart.reduce((s, item) => {
-        const sell = Number(item.sellPrice) || 0;
-        const buy = Number(item.buyPrice) || 0;
-        const qty = Number(item.quantity) || 0;
-        return s + (sell - buy) * qty;
-      }, 0);
-      remainingProfit += reportProfit;
+      // استخدام total من الفاتورة مباشرة
+      const reportTotal = Number(r.total || 0);
+      grossProfitValue += reportTotal;
     });
 
+    // حساب المصروفات بدون "فاتورة مرتجع"
+    const totalMasrofatWithoutReturn = filteredMasrofat.reduce((sum, m) => {
+      // استبعاد المصروفات التي سببها "فاتورة مرتجع"
+      if (m.reason === "فاتورة مرتجع") {
+        return sum;
+      }
+      return sum + Number(m.masrof || 0);
+    }, 0);
+
+    // حساب صافي الربح = إجمالي بيع الفواتير - المصروفات (بدون فاتورة مرتجع)
+    const netProfitValue = grossProfitValue - totalMasrofatWithoutReturn;
+
+    let remainingProfit = grossProfitValue;
     const totalMasrofatT = filteredDaily.reduce(
       (sum, d) => sum + Number(d.totalMasrofat || 0),
       0
@@ -335,6 +383,8 @@ function ProfitContent() {
     return {
       cashTotal: remainingCash < 0 ? 0 : remainingCash,
       profit: remainingProfit < 0 ? 0 : remainingProfit,
+      grossProfit: grossProfitValue,
+      netProfit: netProfitValue < 0 ? 0 : netProfitValue,
       mostafa: mostafaSum < 0 ? 0 : mostafaSum,
       mido: midoSum < 0 ? 0 : midoSum,
       doubleM: doubleMSum < 0 ? 0 : doubleMSum,
@@ -345,6 +395,7 @@ function ProfitContent() {
     dailyProfitData,
     reports,
     withdraws,
+    masrofat,
     shop,
     resetAt,
     parseDate,
@@ -353,6 +404,8 @@ function ProfitContent() {
   useEffect(() => {
     setCashTotal(calculatedTotals.cashTotal);
     setProfit(calculatedTotals.profit);
+    setGrossProfit(calculatedTotals.grossProfit);
+    setNetProfit(calculatedTotals.netProfit);
     setMostafaBalance(calculatedTotals.mostafa);
     setMidoBalance(calculatedTotals.mido);
     setDoubleMBalance(calculatedTotals.doubleM);
@@ -606,14 +659,20 @@ function ProfitContent() {
               {isHidden ? "*****" : cashTotal.toFixed(2)} EGP
             </span>
           </div>
-        </div>
-        <div className={styles.summaryCards}>
           <div className={styles.summaryCard}>
             <span className={styles.summaryLabel}>الربح</span>
             <span className={styles.summaryValue}>
-              {isHidden ? "*****" : profit.toFixed(2)} EGP
+              {isHidden ? "*****" : grossProfit.toFixed(2)} EGP
             </span>
           </div>
+          <div className={styles.summaryCard}>
+            <span className={styles.summaryLabel}>صافي الربح</span>
+            <span className={styles.summaryValue}>
+              {isHidden ? "*****" : netProfit.toFixed(2)} EGP
+            </span>
+          </div>
+        </div>
+        <div className={styles.summaryCards}>
           <div className={styles.summaryCard}>
             <span className={styles.summaryLabel}>مصطفى</span>
             <span className={styles.summaryValue}>
