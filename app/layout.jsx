@@ -1,6 +1,7 @@
 import "./globals.css";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
+import OnlineStatus from "@/components/OnlineStatus";
 
 export const metadata = {
   title: "Double M",
@@ -20,14 +21,17 @@ export default function RootLayout({ children }) {
           <link rel="shortcut icon" href="/favicon.ico" />
           <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
           <link rel="manifest" href="/site.webmanifest" />
+          <meta name="theme-color" content="#ffffff" />
+          <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
       </head>
       <body>
         <ThemeProvider>
           <NotificationProvider>
-        {children}
+            <OnlineStatus />
+            {children}
           </NotificationProvider>
         </ThemeProvider>
       </body>
     </html>
-  );
+    );
 }
