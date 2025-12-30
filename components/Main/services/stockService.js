@@ -123,6 +123,13 @@ export const stockService = {
 
   async restoreStock(item) {
     try {
+      // التأكد من وجود shop
+      const shop = item.shop || (typeof window !== "undefined" ? localStorage.getItem("shop") : null);
+      
+      if (!shop) {
+        throw new Error("Shop is required for restoring stock");
+      }
+
       let prodRef = null;
 
       if (item.originalProductId) {
@@ -131,21 +138,24 @@ export const stockService = {
         const q = query(
           collection(db, "lacosteProducts"),
           where("code", "==", item.code),
-          where("shop", "==", item.shop)
+          where("shop", "==", shop)
         );
         const snapshot = await getDocs(q);
         prodRef = snapshot.docs[0]?.ref;
       }
 
-      if (!prodRef) {
-        // Create new product
+      // دالة مساعدة لإنشاء منتج جديد
+      const createNewProduct = async () => {
         const newProd = {
-          name: item.name,
+          name: item.name || "منتج بدون اسم",
           code: item.code,
           quantity: item.quantity || 0,
           buyPrice: item.buyPrice || 0,
           sellPrice: item.sellPrice || 0,
-          shop: item.shop,
+          finalPrice: item.finalPrice || item.sellPrice || 0,
+          section: item.section || "",
+          merchantName: item.merchantName || "",
+          shop: shop,
           type: item.type || "product",
         };
 
@@ -153,60 +163,112 @@ export const stockService = {
           newProd.colors = [
             {
               color: item.color,
-              sizes: [{ size: item.size || "الكمية", qty: item.quantity }],
+              sizes: item.size ? [{ size: item.size, qty: item.quantity || 0 }] : undefined,
+              quantity: item.size ? undefined : (item.quantity || 0),
             },
           ];
+          // إزالة الحقول undefined
+          if (newProd.colors[0].sizes === undefined) {
+            delete newProd.colors[0].sizes;
+          }
+          if (newProd.colors[0].quantity === undefined) {
+            delete newProd.colors[0].quantity;
+          }
         }
         if (item.size && !item.color) {
-          newProd.sizes = [{ size: item.size, qty: item.quantity }];
+          newProd.sizes = [{ size: item.size, qty: item.quantity || 0 }];
         }
 
         await addDoc(collection(db, "lacosteProducts"), newProd);
+      };
+
+      if (!prodRef) {
+        // Create new product
+        await createNewProduct();
         return;
       }
 
       const prodSnap = await getDoc(prodRef);
       if (!prodSnap.exists()) {
         // Create new product
-        const newProd = {
-          name: item.name,
-          code: item.code,
-          quantity: item.quantity || 0,
-          buyPrice: item.buyPrice || 0,
-          sellPrice: item.sellPrice || 0,
-          shop: item.shop,
-          type: item.type || "product",
-        };
-        await addDoc(collection(db, "lacosteProducts"), newProd);
+        await createNewProduct();
         return;
       }
 
       const data = prodSnap.data();
       let updatedData = { ...data };
 
+      // تحديث البيانات الإضافية من المنتج المرتجع إذا كانت موجودة
+      // نحافظ على البيانات الأصلية إذا كانت موجودة، أو نضيفها من المنتج المرتجع
+      if (item.finalPrice && !updatedData.finalPrice) {
+        updatedData.finalPrice = item.finalPrice;
+      }
+      if (item.section && !updatedData.section) {
+        updatedData.section = item.section;
+      }
+      if (item.merchantName && !updatedData.merchantName) {
+        updatedData.merchantName = item.merchantName;
+      }
+
       // Restore based on variant type
       if (item.color && Array.isArray(updatedData.colors)) {
+        // البحث عن اللون المطابق
+        let colorFound = false;
         updatedData.colors = updatedData.colors.map((c) => {
           if (c.color === item.color) {
+            colorFound = true;
             if (item.size && Array.isArray(c.sizes)) {
-              c.sizes = c.sizes.map((s) =>
-                s.size === item.size
-                  ? { ...s, qty: (s.qty || 0) + Number(item.quantity) }
-                  : s
-              );
+              // البحث عن المقاس المطابق
+              let sizeFound = false;
+              c.sizes = c.sizes.map((s) => {
+                if (s.size === item.size) {
+                  sizeFound = true;
+                  return { ...s, qty: (s.qty || 0) + Number(item.quantity) };
+                }
+                return s;
+              });
+              
+              // إذا لم نجد المقاس، نضيفه
+              if (!sizeFound) {
+                c.sizes = [...(c.sizes || []), { size: item.size, qty: Number(item.quantity) }];
+              }
             } else {
+              // لا يوجد مقاس، نضيف للكمية العامة للون
               c.quantity = (c.quantity || 0) + Number(item.quantity);
             }
           }
           return c;
         });
+        
+        // إذا لم نجد اللون، نضيفه
+        if (!colorFound) {
+          const newColor = {
+            color: item.color,
+          };
+          if (item.size) {
+            newColor.sizes = [{ size: item.size, qty: Number(item.quantity) }];
+          } else {
+            newColor.quantity = Number(item.quantity);
+          }
+          updatedData.colors = [...(updatedData.colors || []), newColor];
+        }
       } else if (item.size && Array.isArray(updatedData.sizes)) {
-        updatedData.sizes = updatedData.sizes.map((s) =>
-          s.size === item.size
-            ? { ...s, qty: (s.qty || 0) + Number(item.quantity) }
-            : s
-        );
+        // البحث عن المقاس
+        let sizeFound = false;
+        updatedData.sizes = updatedData.sizes.map((s) => {
+          if (s.size === item.size) {
+            sizeFound = true;
+            return { ...s, qty: (s.qty || 0) + Number(item.quantity) };
+          }
+          return s;
+        });
+        
+        // إذا لم نجد المقاس، نضيفه
+        if (!sizeFound) {
+          updatedData.sizes = [...(updatedData.sizes || []), { size: item.size, qty: Number(item.quantity) }];
+        }
       } else if (!item.color && !item.size) {
+        // منتج بسيط بدون variants
         updatedData.quantity =
           (updatedData.quantity || 0) + Number(item.quantity);
       }

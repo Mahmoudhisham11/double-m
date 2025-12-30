@@ -32,6 +32,7 @@ import {
 } from "@/contexts/NotificationContext";
 import { CONFIG } from "@/constants/config";
 import InputModal from "./components/InputModal";
+import ConfirmModal from "@/components/Main/Modals/ConfirmModal";
 
 function ProductsContent() {
   const { success, error: showError, warning } = useNotification();
@@ -49,6 +50,8 @@ function ProductsContent() {
   const [showDeletePopup, setShowDeletePopup] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteForm, setDeleteForm] = useState([]);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [productToDelete, setProductToDelete] = useState(null);
   const [filterSection, setFilterSection] = useState("الكل");
   const [isSaving, setIsSaving] = useState(false);
   const [form, setForm] = useState({
@@ -382,12 +385,22 @@ function ProductsContent() {
     showError,
   ]);
 
-  const handleDelete = async (product) => {
+  const handleDelete = (product) => {
+    // حفظ المنتج المراد حذفه وفتح popup التأكيد
+    setProductToDelete(product);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!productToDelete) return;
+
+    const product = productToDelete;
     const hasColors = product.colors && product.colors.length > 0;
 
     // ✅ لو المنتج ملوش ألوان → نحذفه فورًا + نخزّنه في deletedProducts
     if (!hasColors) {
       try {
+        const shop = localStorage.getItem("shop");
         // الكمية اللي تتحسب في التقارير
         const deletedQty = Number(product.quantity || 1);
 
@@ -412,6 +425,9 @@ function ProductsContent() {
         showError(`حدث خطأ أثناء الحذف: ${e.message || "خطأ غير معروف"}`);
       }
 
+      // إغلاق popup التأكيد ومسح المنتج
+      setShowDeleteConfirm(false);
+      setProductToDelete(null);
       return; // مهم جدًا
     }
 
@@ -429,6 +445,10 @@ function ProductsContent() {
 
     setDeleteForm(formatted);
     setShowDeletePopup(true);
+    
+    // إغلاق popup التأكيد
+    setShowDeleteConfirm(false);
+    setProductToDelete(null);
   };
 
   const computeTempColorsQty = () => {
@@ -1712,6 +1732,25 @@ function ProductsContent() {
         type={inputModal.type}
         min={inputModal.min}
         max={inputModal.max}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          setProductToDelete(null);
+        }}
+        title="تأكيد الحذف"
+        message={
+          productToDelete
+            ? `هل أنت متأكد أنك تريد حذف المنتج "${productToDelete.name}" (كود: ${productToDelete.code})؟`
+            : "هل أنت متأكد أنك تريد حذف هذا المنتج؟"
+        }
+        onConfirm={handleConfirmDelete}
+        confirmText="حذف"
+        cancelText="إلغاء"
+        type="danger"
       />
     </div>
   );

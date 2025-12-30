@@ -46,5 +46,8 @@ export const prepareCartItem = (product, options = {}) => {
     originalProductId: product.id,
     code: product.code || '',
     buyPrice: product.buyPrice || 0,
+    finalPrice: product.finalPrice || 0,
+    section: product.section || '',
+    merchantName: product.merchantName || '',
   };
 };

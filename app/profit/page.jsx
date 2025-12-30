@@ -342,6 +342,14 @@ function ProfitContent() {
       grossProfitValue += reportTotal;
     });
 
+    // حساب الربح = مجموع أرباح كل فاتورة من reports
+    let profitValue = 0;
+    filteredReports.forEach((r) => {
+      // استخدام profit من الفاتورة مباشرة
+      const reportProfit = Number(r.profit || 0);
+      profitValue += reportProfit;
+    });
+
     // حساب المصروفات بدون "فاتورة مرتجع"
     const totalMasrofatWithoutReturn = filteredMasrofat.reduce((sum, m) => {
       // استبعاد المصروفات التي سببها "فاتورة مرتجع"
@@ -351,10 +359,10 @@ function ProfitContent() {
       return sum + Number(m.masrof || 0);
     }, 0);
 
-    // حساب صافي الربح = إجمالي بيع الفواتير - المصروفات (بدون فاتورة مرتجع)
-    const netProfitValue = grossProfitValue - totalMasrofatWithoutReturn;
+    // حساب صافي الربح = مجموع أرباح كل فاتورة - المصروفات (بدون فاتورة مرتجع)
+    const netProfitValue = profitValue - totalMasrofatWithoutReturn;
 
-    let remainingProfit = grossProfitValue;
+    let remainingProfit = profitValue;
     const totalMasrofatT = filteredDaily.reduce(
       (sum, d) => sum + Number(d.totalMasrofat || 0),
       0
@@ -382,9 +390,9 @@ function ProfitContent() {
 
     return {
       cashTotal: remainingCash < 0 ? 0 : remainingCash,
-      profit: remainingProfit < 0 ? 0 : remainingProfit,
+      profit: profitValue, // الربح = مجموع أرباح كل فاتورة
       grossProfit: grossProfitValue,
-      netProfit: netProfitValue < 0 ? 0 : netProfitValue,
+      netProfit: netProfitValue < 0 ? 0 : netProfitValue, // صافي الربح = مجموع أرباح الفواتير - المصروفات (بدون فاتورة مرتجع)
       mostafa: mostafaSum < 0 ? 0 : mostafaSum,
       mido: midoSum < 0 ? 0 : midoSum,
       doubleM: doubleMSum < 0 ? 0 : doubleMSum,
@@ -662,7 +670,7 @@ function ProfitContent() {
           <div className={styles.summaryCard}>
             <span className={styles.summaryLabel}>الربح</span>
             <span className={styles.summaryValue}>
-              {isHidden ? "*****" : grossProfit.toFixed(2)} EGP
+              {isHidden ? "*****" : profit.toFixed(2)} EGP
             </span>
           </div>
           <div className={styles.summaryCard}>

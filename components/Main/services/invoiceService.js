@@ -93,15 +93,57 @@ export const invoiceService = {
       }
 
       const invoiceData = invoiceSnap.data();
-      const updatedCart = invoiceData.cart.filter(
-        (p) =>
-          !(
-            p.code === item.code &&
-            p.quantity === item.quantity &&
-            (p.color || "") === (item.color || "") &&
-            (p.size || "") === (item.size || "")
-          )
-      );
+      
+      if (!Array.isArray(invoiceData.cart) || invoiceData.cart.length === 0) {
+        return { success: false, message: "الفاتورة فارغة" };
+      }
+
+      // البحث عن المنتج المراد إرجاعه
+      // نستخدم منطق أفضل: نبحث عن أول منتج يطابق الكود واللون والمقاس
+      // ثم نحذف الكمية المطلوبة (أو المنتج بالكامل إذا كانت الكمية متطابقة)
+      let itemFound = false;
+      let itemIndex = -1;
+      
+      for (let i = 0; i < invoiceData.cart.length; i++) {
+        const p = invoiceData.cart[i];
+        const matchesCode = p.code === item.code;
+        const matchesColor = (p.color || "") === (item.color || "");
+        const matchesSize = (p.size || "") === (item.size || "");
+        
+        if (matchesCode && matchesColor && matchesSize) {
+          itemIndex = i;
+          itemFound = true;
+          break;
+        }
+      }
+
+      if (!itemFound) {
+        return { success: false, message: "المنتج غير موجود في الفاتورة" };
+      }
+
+      const foundItem = invoiceData.cart[itemIndex];
+      
+      // التحقق من الكمية
+      if (foundItem.quantity < item.quantity) {
+        return { 
+          success: false, 
+          message: `الكمية المطلوبة (${item.quantity}) أكبر من الكمية في الفاتورة (${foundItem.quantity})` 
+        };
+      }
+
+      // إنشاء نسخة محدثة من الـ cart
+      const updatedCart = [...invoiceData.cart];
+      
+      if (foundItem.quantity === item.quantity) {
+        // حذف المنتج بالكامل إذا كانت الكمية متطابقة
+        updatedCart.splice(itemIndex, 1);
+      } else {
+        // تقليل الكمية إذا كانت الكمية المطلوبة أقل
+        updatedCart[itemIndex] = {
+          ...foundItem,
+          quantity: foundItem.quantity - item.quantity,
+        };
+      }
 
       if (updatedCart.length > 0) {
         const newTotal = calculateSubtotal(updatedCart);
@@ -120,7 +162,11 @@ export const invoiceService = {
       }
     } catch (error) {
       console.error("Error returning product:", error);
-      return { success: false, error };
+      return { 
+        success: false, 
+        message: error.message || "حدث خطأ أثناء إرجاع المنتج",
+        error 
+      };
     }
   },
 };

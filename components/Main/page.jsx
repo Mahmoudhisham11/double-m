@@ -217,13 +217,23 @@ function MainContent() {
 
       // Check available quantity for all products (with or without variants)
       // Note: We only check availability, we don't reserve stock until invoice is saved
+      let productWithFullData = product;
+      
       if (product.id) {
-        // Get current product data from Firestore to check availability
+        // Get current product data from Firestore to check availability and get full data
         const prodRef = doc(db, "lacosteProducts", product.id);
         const prodSnap = await getDoc(prodRef);
         
         if (prodSnap.exists()) {
           const prodData = prodSnap.data();
+          
+          // استخدام البيانات الكاملة من Firebase لضمان وجود جميع الحقول
+          productWithFullData = {
+            ...product,
+            ...prodData,
+            id: product.id, // الحفاظ على الـ id الأصلي
+          };
+          
           const available = getAvailableQuantity(
             prodData,
             options.color || null,
@@ -258,8 +268,8 @@ function MainContent() {
         }
       }
 
-      // Add to cart
-      const result = await addToCart(product, options);
+      // Add to cart with full product data
+      const result = await addToCart(productWithFullData, options);
       if (result.success) {
         success("تم إضافة المنتج للسلة");
       } else {
@@ -472,7 +482,16 @@ function MainContent() {
   // Handle return product
   const handleReturn = useCallback(async (item) => {
     if (!selectedInvoice) return;
-    await returnProduct(item, selectedInvoice.id, setSelectedInvoice);
+    
+    try {
+      await returnProduct(item, selectedInvoice.id, (updatedInvoice) => {
+        // تحديث selectedInvoice بالفاتورة المحدثة
+        setSelectedInvoice(updatedInvoice);
+      });
+    } catch (err) {
+      console.error("Error in handleReturn:", err);
+      // الخطأ تم معالجته في useInvoiceReturn
+    }
   }, [selectedInvoice, returnProduct]);
 
   // Handle suspend invoice
@@ -520,6 +539,8 @@ function MainContent() {
           sellPrice: item.sellPrice,
           buyPrice: item.buyPrice,
           finalPrice: item.finalPrice,
+          section: item.section,
+          merchantName: item.merchantName,
         },
         {
           quantity: item.quantity,
@@ -669,7 +690,9 @@ function MainContent() {
       {selectedInvoice && (
         <InvoiceDetails
           invoice={selectedInvoice}
-          onClose={() => setSelectedInvoice(null)}
+          onClose={() => {
+            setSelectedInvoice(null);
+          }}
           onPrint={handlePrintInvoice}
           onReturn={handleReturn}
           returningItemsState={returningItemsState}
