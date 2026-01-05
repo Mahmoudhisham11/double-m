@@ -71,7 +71,7 @@ function MainContent() {
   const { products } = useProducts(shop);
   const { invoices, filterInvoices, formatDate } = useInvoices(shop);
   const { employees } = useEmployees(shop);
-  const { totalMasrofat } = useMasrofat(shop);
+  const { totalMasrofat, totalMasrofatWithReturn } = useMasrofat(shop);
   const { returnProduct, returningItemsState } = useInvoiceReturn();
   const { isOnline } = useOfflineSync();
 
@@ -195,9 +195,9 @@ function MainContent() {
 
   // التحقق من كلمة المرور لإظهار الأرقام
   const handlePasswordConfirm = useCallback((password) => {
-    setShowPasswordModal(false);
+    setShowPasswordModal(false);  
     
-    const EYE_PASSWORD = "2468";
+    const EYE_PASSWORD = "1994";
     
     if (password !== EYE_PASSWORD) {
       showError("❌ كلمة المرور غير صحيحة");
@@ -666,6 +666,7 @@ function MainContent() {
         <StatsCards
           invoices={filteredInvoices}
           totalMasrofat={totalMasrofat}
+          totalMasrofatWithReturn={totalMasrofatWithReturn}
           isHidden={isHidden}
           userName={userName}
           onTopEmployeeClick={handleTopEmployeeClick}

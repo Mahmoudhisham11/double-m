@@ -8,6 +8,8 @@ import {
   deleteDoc,
   doc,
   writeBatch,
+  query,
+  where,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { FaRegTrashAlt } from "react-icons/fa";
@@ -24,24 +26,43 @@ function WaredContent() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
-    const colRef = collection(db, "wared");
+    const shop = typeof window !== "undefined" ? localStorage.getItem("shop") : null;
+    
+    if (!shop) {
+      console.warn("⚠️ No shop found in localStorage");
+      setProducts([]);
+      setFiltered([]);
+      return;
+    }
 
-    const unsub = onSnapshot(colRef, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+    const colRef = query(
+      collection(db, "wared"),
+      where("shop", "==", shop)
+    );
 
-      // ترتيب حسب التاريخ تنازليًا
-      data.sort((a, b) => {
-        const dateA = a.date?.toDate ? a.date.toDate().getTime() : (a.date?.seconds || 0) * 1000;
-        const dateB = b.date?.toDate ? b.date.toDate().getTime() : (b.date?.seconds || 0) * 1000;
-        return dateB - dateA;
-      });
+    const unsub = onSnapshot(
+      colRef,
+      (snapshot) => {
+        const data = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
 
-      setProducts(data);
-      setFiltered(data);
-    });
+        // ترتيب حسب التاريخ تنازليًا
+        data.sort((a, b) => {
+          const dateA = a.date?.toDate ? a.date.toDate().getTime() : (a.date?.seconds || 0) * 1000;
+          const dateB = b.date?.toDate ? b.date.toDate().getTime() : (b.date?.seconds || 0) * 1000;
+          return dateB - dateA;
+        });
+
+        setProducts(data);
+        setFiltered(data);
+      },
+      (error) => {
+        console.error("Error fetching wared:", error);
+        showError("حدث خطأ أثناء جلب البيانات");
+      }
+    );
 
     return () => unsub();
   }, []);
@@ -54,10 +75,12 @@ function WaredContent() {
   // Auto filter by date when searchDate changes
   useEffect(() => {
     if (!searchDate) {
+      // إذا لم يكن هناك تاريخ محدد، نعرض كل المنتجات
       setFiltered(products);
       return;
     }
 
+    // إذا كان هناك تاريخ محدد، نفلتر حسب التاريخ
     const selectedDate = new Date(searchDate).toLocaleDateString("ar-EG");
 
     const result = products.filter(p => {
@@ -89,6 +112,25 @@ function WaredContent() {
 
   const isAllSelected = filtered.length > 0 && selectedIds.size === filtered.length;
   const isIndeterminate = selectedIds.size > 0 && selectedIds.size < filtered.length;
+
+  // حساب الإجماليات
+  const totals = useMemo(() => {
+    let totalQuantity = 0;
+    let totalBuyPrice = 0;
+
+    filtered.forEach((p) => {
+      const qty = Number(p.quantity || 0);
+      const buyPrice = Number(p.buyPrice || 0);
+      
+      totalQuantity += qty;
+      totalBuyPrice += buyPrice * qty;
+    });
+
+    return {
+      totalQuantity,
+      totalBuyPrice,
+    };
+  }, [filtered]);
 
   const handleDeleteSelected = async () => {
     if (selectedIds.size === 0) {
@@ -187,6 +229,22 @@ function WaredContent() {
           </div>
         </div>
 
+        {/* Summary Cards */}
+        <div className={styles.summaryCards}>
+          <div className={styles.summaryCard}>
+            <span className={styles.summaryLabel}>إجمالي الكمية</span>
+            <span className={styles.summaryValue}>
+              {totals.totalQuantity} قطعة
+            </span>
+          </div>
+          <div className={styles.summaryCard}>
+            <span className={styles.summaryLabel}>إجمالي سعر الشراء</span>
+            <span className={styles.summaryValue}>
+              {totals.totalBuyPrice.toFixed(2)} EGP
+            </span>
+          </div>
+        </div>
+
         {/* Table */}
         <div className={styles.tableWrapper}>
           <table className={styles.waredTable}>
@@ -235,7 +293,9 @@ function WaredContent() {
                     <td className={styles.codeCell}>{p.code ?? "-"}</td>
                     <td className={styles.nameCell}>{p.name ?? "-"}</td>
                     <td className={styles.quantityCell}>{p.quantity ?? "-"}</td>
-                    <td className={styles.priceCell}>{p.price ? `${p.price} EGP` : "-"}</td>
+                    <td className={styles.priceCell}>
+                      {p.buyPrice ? `${p.buyPrice} EGP` : "-"}
+                    </td>
                     <td className={styles.dateCell}>
                       {p.date?.toDate
                         ? p.date.toDate().toLocaleDateString("ar-EG")

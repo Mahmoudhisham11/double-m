@@ -33,13 +33,14 @@ export default function InvoiceList({
             <th>رقم الهاتف</th>
             <th>الموظف</th>
             <th>الإجمالي</th>
+            <th>طريقة الدفع</th>
             <th>التاريخ</th>
           </tr>
         </thead>
         <tbody>
           {sortedInvoices.length === 0 ? (
             <tr>
-              <td colSpan={6} className={styles.emptyCell}>
+              <td colSpan={7} className={styles.emptyCell}>
                 <div className={styles.emptyState}>
                   <div className={styles.emptyIcon}>📄</div>
                   <h3>لا توجد فواتير</h3>
@@ -61,6 +62,7 @@ export default function InvoiceList({
                 <td className={styles.phoneCell}>{invoice.phone || "-"}</td>
                 <td className={styles.employeeCell}>{invoice.employee || "غير محدد"}</td>
                 <td className={styles.totalCell}>{isHidden ? "****" : `${invoice.total} جنيه`}</td>
+                <td className={styles.paymentMethodCell}>{invoice.paymentMethod || "نقدي"}</td>
                 <td className={styles.dateCell}>{formatDate(invoice.date)}</td>
               </tr>
             ))

@@ -1,6 +1,6 @@
 "use client";
 import styles from "../styles.module.css";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 export default function ClientModal({
   isOpen,
@@ -13,17 +13,23 @@ export default function ClientModal({
 }) {
   const nameRef = useRef();
   const phoneRef = useRef();
+  const [paymentMethod, setPaymentMethod] = useState("نقدي");
 
   if (!isOpen) return null;
 
   const handleSave = () => {
     const clientName = nameRef.current?.value || "";
     const phone = phoneRef.current?.value || "";
-    onSave({ clientName, phone });
+    onSave({ clientName, phone, paymentMethod });
+  };
+
+  const handleClose = () => {
+    setPaymentMethod("نقدي"); // إعادة تعيين القيمة الافتراضية عند الإغلاق
+    onClose();
   };
 
   return (
-    <div className={styles.popupOverlay} onClick={onClose}>
+    <div className={styles.popupOverlay} onClick={handleClose}>
       <div className={styles.popupBox} onClick={(e) => e.stopPropagation()}>
         <h3>إضافة بيانات العميل</h3>
         <label>اسم العميل:</label>
@@ -53,6 +59,18 @@ export default function ClientModal({
             </option>
           ))}
         </select>
+        <label>طريقة الدفع:</label>
+        <select
+          value={paymentMethod}
+          onChange={(e) => setPaymentMethod(e.target.value)}
+          className={styles.modalSelect}
+        >
+          <option value="نقدي">نقدي</option>
+          <option value="محفظة">محفظة</option>
+          <option value="انستاباي">انستاباي</option>
+          <option value="فيزا">فيزا</option>
+          <option value="أجل">أجل</option>
+        </select>
         <div className={styles.popupBtns}>
           <button 
             onClick={handleSave} 
@@ -63,7 +81,7 @@ export default function ClientModal({
             {isSaving ? "⏳ جاري الحفظ..." : "حفظ"}
           </button>
           <button 
-            onClick={onClose} 
+            onClick={handleClose} 
             disabled={isSaving}
             className={styles.cancelBtn}
             style={{ opacity: isSaving ? 0.7 : 1, cursor: isSaving ? "not-allowed" : "pointer" }}

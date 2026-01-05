@@ -6,6 +6,7 @@ import { CONFIG, PERMISSIONS } from "@/constants/config";
 export default function StatsCards({ 
   invoices, 
   totalMasrofat, 
+  totalMasrofatWithReturn,
   isHidden, 
   userName,
   onTopEmployeeClick
@@ -24,7 +25,8 @@ export default function StatsCards({
       return sum + calculatedProfit;
     }, 0);
 
-    const finallyTotal = Number(totalSales) - Number(totalMasrofat);
+    // صافي المبيع = المبيعات - جميع المصروفات (بما فيها فاتورة مرتجع)
+    const finallyTotal = Number(totalSales) - Number(totalMasrofatWithReturn || totalMasrofat);
     
     const employeeSales = {};
     invoices.forEach((invoice) => {
@@ -43,9 +45,9 @@ export default function StatsCards({
       finalProfit,
       finallyTotal,
       topEmployee,
-      netProfit: Number(finalProfit) - Number(totalMasrofat)
+      netProfit: Number(finalProfit) - Number(totalMasrofat) // صافي الربح بدون فاتورة مرتجع
     };
-  }, [invoices, totalMasrofat]);
+  }, [invoices, totalMasrofat, totalMasrofatWithReturn]);
 
   const canViewProfit = PERMISSIONS.VIEW_PROFIT(userName);
 
@@ -65,7 +67,7 @@ export default function StatsCards({
       
       <div className={styles.summaryCard}>
         <span className={styles.summaryLabel}>المصاريف</span>
-        <span className={styles.summaryValue}>{isHidden ? "****" : `${totalMasrofat} جنيه`}</span>
+        <span className={styles.summaryValue}>{isHidden ? "****" : `${totalMasrofatWithReturn || totalMasrofat} جنيه`}</span>
       </div>
       
       <div className={styles.summaryCard}>

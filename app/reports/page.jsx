@@ -14,6 +14,7 @@ import {
   deleteDoc,
   onSnapshot,
   writeBatch,
+  Timestamp,
 } from "firebase/firestore";
 import { db } from "@/app/firebase";
 import * as XLSX from "xlsx";
@@ -357,7 +358,7 @@ function ReportsContent() {
   const canViewDeleted = useMemo(() => {
     if (typeof window === "undefined") return false;
     const currentUser = localStorage.getItem("userName");
-    return currentUser === "mostafabeso10@gmail.com" || currentUser === "medo";
+    return currentUser === "mostafabeso10@gmail.com" || currentUser === "medo" || currentUser === "mahmoud";
   }, []);
 
   // Handle select all for deleted products
@@ -661,6 +662,7 @@ function ReportsContent() {
         );
 
         if (!prodQuerySnap.empty) {
+          // المنتج موجود، نحدث الكمية فقط
           const prodRef = prodQuerySnap.docs[0].ref;
           const prodData = prodQuerySnap.docs[0].data();
           let updatedData = { ...prodData };
@@ -692,9 +694,54 @@ function ReportsContent() {
           }
 
           await updateDoc(prodRef, updatedData);
+        } else {
+          // المنتج غير موجود، نضيفه بكل بياناته
+          const newProduct = {
+            code: item.code,
+            name: item.name || "منتج بدون اسم",
+            buyPrice: item.buyPrice || 0,
+            sellPrice: item.sellPrice || 0,
+            finalPrice: item.finalPrice || item.sellPrice || 0,
+            quantity: item.quantity || 0,
+            section: item.section || "",
+            merchantName: item.merchantName || "",
+            shop: item.shop || shop,
+            type: "product",
+            date: Timestamp.now(),
+          };
+
+          // إضافة الألوان والمقاسات إذا كانت موجودة
+          if (item.color) {
+            newProduct.colors = [
+              {
+                color: item.color,
+                ...(item.size
+                  ? {
+                      sizes: [
+                        {
+                          size: item.size,
+                          qty: item.quantity || 0,
+                        },
+                      ],
+                    }
+                  : {
+                      quantity: item.quantity || 0,
+                    }),
+              },
+            ];
+          } else if (item.size) {
+            newProduct.sizes = [
+              {
+                size: item.size,
+                qty: item.quantity || 0,
+              },
+            ];
+          }
+
+          await addDoc(collection(db, "lacosteProducts"), newProduct);
         }
 
-        // Handle invoice
+        // Handle invoice in reports
         const invoiceRef = doc(db, "reports", invoiceId);
         const invoiceSnap = await getDoc(invoiceRef);
 
@@ -705,42 +752,110 @@ function ReportsContent() {
 
         const invoiceData = invoiceSnap.data();
         const invoiceDate = invoiceData.date;
+        const invoiceNumber = invoiceData.invoiceNumber;
 
-        const updatedCart = invoiceData.cart.filter(
-          (p) =>
-            !(
-              p.code === item.code &&
-              p.quantity === item.quantity &&
-              p.sellPrice === item.sellPrice &&
-              p.name === item.name &&
-              (p.color || "") === (item.color || "") &&
-              (p.size || "") === (item.size || "")
-            )
+        // البحث عن المنتج المراد إرجاعه بدقة أكبر
+        let itemFound = false;
+        let itemIndex = -1;
+        
+        for (let i = 0; i < invoiceData.cart.length; i++) {
+          const p = invoiceData.cart[i];
+          const matchesCode = p.code === item.code;
+          const matchesColor = (p.color || "") === (item.color || "");
+          const matchesSize = (p.size || "") === (item.size || "");
+          
+          if (matchesCode && matchesColor && matchesSize) {
+            itemIndex = i;
+            itemFound = true;
+            break;
+          }
+        }
+
+        if (!itemFound) {
+          showError("⚠️ المنتج غير موجود في الفاتورة!");
+          return;
+        }
+
+        const foundItem = invoiceData.cart[itemIndex];
+        
+        // التحقق من الكمية
+        if (foundItem.quantity < item.quantity) {
+          showError(`⚠️ الكمية المطلوبة (${item.quantity}) أكبر من الكمية في الفاتورة (${foundItem.quantity})`);
+          return;
+        }
+
+        // إنشاء نسخة محدثة من الـ cart
+        const updatedCart = [...invoiceData.cart];
+        
+        if (foundItem.quantity === item.quantity) {
+          // حذف المنتج بالكامل إذا كانت الكمية متطابقة
+          updatedCart.splice(itemIndex, 1);
+        } else {
+          // تقليل الكمية إذا كانت الكمية المطلوبة أقل
+          updatedCart[itemIndex] = {
+            ...foundItem,
+            quantity: foundItem.quantity - item.quantity,
+          };
+        }
+
+        const newTotal = updatedCart.reduce(
+          (sum, p) => sum + (Number(p.sellPrice || 0) * Number(p.quantity || 0)),
+          0
+        );
+        const newProfit = updatedCart.reduce(
+          (sum, p) =>
+            sum + (Number(p.sellPrice || 0) - Number(p.buyPrice || 0)) * Number(p.quantity || 1),
+          0
         );
 
+        // تحديث reports
         if (updatedCart.length > 0) {
-          const newTotal = updatedCart.reduce(
-            (sum, p) => sum + (p.sellPrice * p.quantity || 0),
-            0
-          );
-          const newProfit = updatedCart.reduce(
-            (sum, p) =>
-              sum + (p.sellPrice - (p.buyPrice || 0)) * (p.quantity || 1),
-            0
-          );
-
           await updateDoc(invoiceRef, {
             cart: updatedCart,
             total: newTotal,
             profit: newProfit,
           });
+        } else {
+          await deleteDoc(invoiceRef);
+        }
 
-          const empQ = query(
-            collection(db, "employeesReports"),
-            where("date", "==", invoiceData.date),
-            where("shop", "==", invoiceData.shop)
-          );
-          const empSnap = await getDocs(empQ);
+        // تحديث dailySales إذا كانت الفاتورة موجودة هناك (لم يتم تقفيل اليوم بعد)
+        if (invoiceNumber) {
+          try {
+            const dailySalesQ = query(
+              collection(db, "dailySales"),
+              where("invoiceNumber", "==", invoiceNumber),
+              where("shop", "==", invoiceData.shop || shop)
+            );
+            const dailySalesSnap = await getDocs(dailySalesQ);
+            
+            if (!dailySalesSnap.empty) {
+              const dailySalesDoc = dailySalesSnap.docs[0];
+              if (updatedCart.length > 0) {
+                await updateDoc(dailySalesDoc.ref, {
+                  cart: updatedCart,
+                  total: newTotal,
+                  profit: newProfit,
+                });
+              } else {
+                await deleteDoc(dailySalesDoc.ref);
+              }
+            }
+          } catch (dailySalesErr) {
+            console.error("Error updating dailySales:", dailySalesErr);
+            // لا نوقف العملية إذا فشل تحديث dailySales
+          }
+        }
+
+        // تحديث employeesReports
+        const empQ = query(
+          collection(db, "employeesReports"),
+          where("date", "==", invoiceData.date),
+          where("shop", "==", invoiceData.shop)
+        );
+        const empSnap = await getDocs(empQ);
+        
+        if (updatedCart.length > 0) {
           const updatePromises = empSnap.docs.map((d) =>
             updateDoc(d.ref, {
               cart: updatedCart,
@@ -749,20 +864,10 @@ function ReportsContent() {
             })
           );
           await Promise.all(updatePromises);
-
           success(`✅ تم إرجاع ${item.name} بنجاح وحُذف من الفاتورة!`);
         } else {
-          await deleteDoc(invoiceRef);
-
-          const empQ = query(
-            collection(db, "employeesReports"),
-            where("date", "==", invoiceData.date),
-            where("shop", "==", invoiceData.shop)
-          );
-          const empSnap = await getDocs(empQ);
           const deletePromises = empSnap.docs.map((d) => deleteDoc(d.ref));
           await Promise.all(deletePromises);
-
           success(`✅ تم إرجاع ${item.name} وحُذفت الفاتورة لأنها أصبحت فارغة.`);
         }
 
@@ -1012,11 +1117,11 @@ function ReportsContent() {
                   displayedReturns.map((ret, index) => {
                     const origMs = toMillis(ret.originalDate);
                     const origDateStr = origMs
-                      ? new Date(origMs).toLocaleDateString("ar-EG")
+                      ? new Date(origMs).toLocaleString("ar-EG")
                       : ret.originalDate || "-";
                     const retMs = toMillis(ret.returnDate);
                     const retDateStr = retMs
-                      ? new Date(retMs).toLocaleDateString("ar-EG")
+                      ? new Date(retMs).toLocaleString("ar-EG")
                       : ret.returnDate || "-";
 
                     return (

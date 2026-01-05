@@ -24,7 +24,10 @@ import {
 } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import Loader from "@/components/Loader/Loader";
-import { NotificationProvider, useNotification } from "@/contexts/NotificationContext";
+import {
+  NotificationProvider,
+  useNotification,
+} from "@/contexts/NotificationContext";
 import ConfirmModal from "@/components/Main/Modals/ConfirmModal";
 
 function DebtsContent() {
@@ -45,6 +48,7 @@ function DebtsContent() {
     dateInput: "",
     paymentAmount: "",
     paymentSource: "درج",
+    notes: "",
   });
 
   const [customers, setCustomers] = useState([]);
@@ -83,12 +87,14 @@ function DebtsContent() {
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentCustomer, setPaymentCustomer] = useState(null);
   const [paymentSource, setPaymentSource] = useState("درج");
+  const [paymentNotes, setPaymentNotes] = useState("");
   const [processingPayment, setProcessingPayment] = useState(false);
 
   // ===== increase debt modal state
   const [showIncreaseModal, setShowIncreaseModal] = useState(false);
   const [increaseAmount, setIncreaseAmount] = useState("");
   const [increaseCustomer, setIncreaseCustomer] = useState(null);
+  const [increaseNotes, setIncreaseNotes] = useState("");
   const [processingIncrease, setProcessingIncrease] = useState(false);
 
   // ===== details popup
@@ -132,8 +138,12 @@ function DebtsContent() {
       const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       // ترتيب حسب التاريخ تنازليًا
       data.sort((a, b) => {
-        const dateA = a.date?.toDate ? a.date.toDate().getTime() : (a.date?.seconds || 0) * 1000;
-        const dateB = b.date?.toDate ? b.date.toDate().getTime() : (b.date?.seconds || 0) * 1000;
+        const dateA = a.date?.toDate
+          ? a.date.toDate().getTime()
+          : (a.date?.seconds || 0) * 1000;
+        const dateB = b.date?.toDate
+          ? b.date.toDate().getTime()
+          : (b.date?.seconds || 0) * 1000;
         return dateB - dateA;
       });
       setCustomers(data);
@@ -162,12 +172,14 @@ function DebtsContent() {
           where("shop", "==", shop)
         );
         const snapshot = await getDocs(q);
-        
+
         const payments = snapshot.docs
           .map((doc) => ({ id: doc.id, ...doc.data() }))
           .filter((p) => {
             if (!p.date) return false;
-            const paymentDate = p.date.toDate ? p.date.toDate() : new Date(p.date);
+            const paymentDate = p.date.toDate
+              ? p.date.toDate()
+              : new Date(p.date);
             // مقارنة التاريخ فقط (بدون الوقت)
             const paymentDateOnly = new Date(
               paymentDate.getFullYear(),
@@ -199,18 +211,18 @@ function DebtsContent() {
       // البحث بالاسم أو رقم الهاتف
       if (searchText.trim()) {
         const searchLower = searchText.toLowerCase();
-        const matchesSearch = 
-          (c.name?.toLowerCase().includes(searchLower) || false) ||
-          (c.phone?.includes(searchText) || false);
+        const matchesSearch =
+          c.name?.toLowerCase().includes(searchLower) ||
+          false ||
+          c.phone?.includes(searchText) ||
+          false;
         if (!matchesSearch) return false;
       }
 
       // البحث بالتاريخ - البحث في عمليات السداد/الزيادة
       if (searchCode) {
         // البحث في عمليات السداد/الزيادة في التاريخ المحدد
-        const hasPaymentOnDate = paymentsByDate.some(
-          (p) => p.debtid === c.id
-        );
+        const hasPaymentOnDate = paymentsByDate.some((p) => p.debtid === c.id);
         if (!hasPaymentOnDate) return false;
       } else {
         // بدون تاريخ، اعرض بس العملاء اللي عندهم دين > 0
@@ -252,6 +264,7 @@ function DebtsContent() {
         date: new Date(),
         shop: shop,
         aslDebt: form.debt,
+        notes: form.notes || "",
       });
 
       // ===== تسجيل السداد إذا موجود
@@ -293,6 +306,7 @@ function DebtsContent() {
         dateInput: "",
         paymentAmount: "",
         paymentSource: "درج",
+        notes: "",
       });
       setActive(false);
       setDetailsPayments([]);
@@ -390,14 +404,18 @@ function DebtsContent() {
     setSelectedIds(newSelected);
   };
 
-  const isAllSelected = filteredCustomers.length > 0 && selectedIds.size === filteredCustomers.length;
-  const isIndeterminate = selectedIds.size > 0 && selectedIds.size < filteredCustomers.length;
+  const isAllSelected =
+    filteredCustomers.length > 0 &&
+    selectedIds.size === filteredCustomers.length;
+  const isIndeterminate =
+    selectedIds.size > 0 && selectedIds.size < filteredCustomers.length;
 
   // ===== Open payment modal
   const openPaymentModal = (customer) => {
     setPaymentCustomer(customer);
     setPaymentAmount("");
     setPaymentSource("درج");
+    setPaymentNotes("");
     setShowPaymentModal(true);
   };
 
@@ -406,6 +424,7 @@ function DebtsContent() {
     setPaymentCustomer(null);
     setPaymentAmount("");
     setPaymentSource("درج");
+    setPaymentNotes("");
     setProcessingPayment(false);
   };
 
@@ -413,6 +432,7 @@ function DebtsContent() {
   const openIncreaseModal = (customer) => {
     setIncreaseCustomer(customer);
     setIncreaseAmount("");
+    setIncreaseNotes("");
     setShowIncreaseModal(true);
   };
 
@@ -420,6 +440,7 @@ function DebtsContent() {
     setShowIncreaseModal(false);
     setIncreaseCustomer(null);
     setIncreaseAmount("");
+    setIncreaseNotes("");
     setProcessingIncrease(false);
   };
 
@@ -469,6 +490,7 @@ function DebtsContent() {
         shop: shop,
         source: "زيادة", // نوع العملية
         type: "زيادة", // حقل إضافي لتحديد نوع العملية
+        notes: increaseNotes || "",
       });
 
       success(`تم زيادة الدين بنجاح. الدين الجديد: ${newDebt} EGP`);
@@ -539,6 +561,7 @@ function DebtsContent() {
         userName: localStorage.getItem("userName"),
         shop: shop,
         source: paymentSource,
+        notes: paymentNotes || "",
       });
 
       // ===== إذا مصدر السداد خزنة، نسجل المبلغ في dailyProfit =====
@@ -595,8 +618,28 @@ function DebtsContent() {
     return filteredCustomers.reduce((acc, c) => acc + Number(c.debt || 0), 0);
   }, [filteredCustomers]);
 
+  // حساب إجمالي الفلوس اللي ليه (ليك)
+  const totalMoneyOwedToMe = useMemo(() => {
+    return filteredCustomers
+      .filter((c) => c.debtDirection === "ليك")
+      .reduce((acc, c) => acc + Number(c.debt || 0), 0);
+  }, [filteredCustomers]);
+
+  // حساب إجمالي الفلوس اللي عليه (بضاعة اجل + بضاعة كاش)
+  const totalMoneyIOwe = useMemo(() => {
+    return filteredCustomers
+      .filter(
+        (c) =>
+          c.debtDirection === "بضاعة اجل" || c.debtDirection === "بضاعة كاش"
+      )
+      .reduce((acc, c) => acc + Number(c.debt || 0), 0);
+  }, [filteredCustomers]);
+
   const totalPayments = useMemo(() => {
-    return detailsPayments.reduce((acc, p) => acc + Number(p.paidAmount || 0), 0);
+    return detailsPayments.reduce(
+      (acc, p) => acc + Number(p.paidAmount || 0),
+      0
+    );
   }, [detailsPayments]);
 
   const totalCustomers = filteredCustomers.length;
@@ -634,6 +677,7 @@ function DebtsContent() {
                   dateInput: "",
                   paymentAmount: "",
                   paymentSource: "درج",
+                  notes: "",
                 });
               }}
               className={styles.addBtn}
@@ -653,6 +697,20 @@ function DebtsContent() {
             <span className={styles.summaryLabel}>إجمالي الديون</span>
             <span className={styles.summaryValue}>
               {totalDebts.toFixed(2)} EGP
+            </span>
+          </div>
+          <div className={styles.summaryCard}>
+            <span className={styles.summaryLabel}>الفلوس اللي ليا (ليك)</span>
+            <span className={styles.summaryValue}>
+              {totalMoneyOwedToMe.toFixed(2)} EGP
+            </span>
+          </div>
+          <div className={styles.summaryCard}>
+            <span className={styles.summaryLabel}>
+              الفلوس اللي عليا (فواتير الجملة)
+            </span>
+            <span className={styles.summaryValue}>
+              {totalMoneyIOwe.toFixed(2)} EGP
             </span>
           </div>
         </div>
@@ -779,6 +837,19 @@ function DebtsContent() {
                 </select>
               </div>
             </div>
+            <div className={styles.inputBox}>
+              <div className="inputContainer" style={{ width: "100%" }}>
+                <label>
+                  <MdDriveFileRenameOutline />
+                </label>
+                <input
+                  type="text"
+                  placeholder="ملاحظة (اختياري)"
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                />
+              </div>
+            </div>
             <div className={styles.actionButtonsContainer}>
               <button className={styles.addBtn} onClick={handleAddProduct}>
                 إضافة العميل
@@ -796,6 +867,7 @@ function DebtsContent() {
                     dateInput: "",
                     paymentAmount: "",
                     paymentSource: "درج",
+                    notes: "",
                   });
                 }}
               >
@@ -828,13 +900,14 @@ function DebtsContent() {
                   <th>الدين لمين</th>
                   <th>تاريخ الدين</th>
                   <th>تاريخ الإضافة</th>
+                  <th>ملاحظة</th>
                   <th>خيارات</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className={styles.emptyCell}>
+                    <td colSpan={9} className={styles.emptyCell}>
                       <div className={styles.emptyState}>
                         <p>❌ لا توجد عملاء</p>
                       </div>
@@ -844,27 +917,36 @@ function DebtsContent() {
                   filteredCustomers.map((customer) => (
                     <tr
                       key={customer.id}
-                      className={selectedIds.has(customer.id) ? styles.selectedRow : ""}
+                      className={
+                        selectedIds.has(customer.id) ? styles.selectedRow : ""
+                      }
                     >
                       <td className={styles.checkboxCell}>
                         <input
                           type="checkbox"
                           checked={selectedIds.has(customer.id)}
-                          onChange={(e) => handleSelectItem(customer.id, e.target.checked)}
+                          onChange={(e) =>
+                            handleSelectItem(customer.id, e.target.checked)
+                          }
                           className={styles.checkbox}
                         />
                       </td>
                       <td className={styles.nameCell}>{customer.name}</td>
                       <td className={styles.phoneCell}>{customer.phone}</td>
-                      <td className={styles.debtCell}>
-                        {customer.debt} EGP
+                      <td className={styles.debtCell}>{customer.debt} EGP</td>
+                      <td className={styles.directionCell}>
+                        {customer.debtDirection || "-"}
                       </td>
-                      <td className={styles.directionCell}>{customer.debtDirection || "-"}</td>
-                      <td className={styles.dateInputCell}>{customer.dateInput || "-"}</td>
+                      <td className={styles.dateInputCell}>
+                        {customer.dateInput || "-"}
+                      </td>
                       <td className={styles.dateCell}>
                         {customer.date?.toDate
                           ? customer.date.toDate().toLocaleDateString("ar-EG")
                           : "-"}
+                      </td>
+                      <td className={styles.notesCell}>
+                        {customer.notes || "-"}
                       </td>
                       <td className={styles.actionsCell}>
                         <div className={styles.actionButtons}>
@@ -952,18 +1034,39 @@ function DebtsContent() {
                   </select>
                 </div>
               </div>
+              <div className={styles.inputBox}>
+                <div className="inputContainer" style={{ width: "100%" }}>
+                  <label>
+                    <MdDriveFileRenameOutline />
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="ملاحظة (اختياري)"
+                    value={paymentNotes}
+                    onChange={(e) => setPaymentNotes(e.target.value)}
+                  />
+                </div>
+              </div>
               {paymentAmount && (
                 <div className={styles.preview}>
                   <p>
                     المبلغ المتبقي بعد السداد:{" "}
                     <strong>
-                      {Math.max(0, Number(paymentCustomer.debt || 0) - Number(paymentAmount || 0))} EGP
+                      {Math.max(
+                        0,
+                        Number(paymentCustomer.debt || 0) -
+                          Number(paymentAmount || 0)
+                      )}{" "}
+                      EGP
                     </strong>
                   </p>
                 </div>
               )}
               <div className={styles.modalActions}>
-                <button className={styles.cancelBtn} onClick={closePaymentModal}>
+                <button
+                  className={styles.cancelBtn}
+                  onClick={closePaymentModal}
+                >
                   إلغاء
                 </button>
                 <button
@@ -1009,18 +1112,36 @@ function DebtsContent() {
                   />
                 </div>
               </div>
+              <div className={styles.inputBox}>
+                <div className="inputContainer" style={{ width: "100%" }}>
+                  <label>
+                    <MdDriveFileRenameOutline />
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="ملاحظة (اختياري)"
+                    value={increaseNotes}
+                    onChange={(e) => setIncreaseNotes(e.target.value)}
+                  />
+                </div>
+              </div>
               {increaseAmount && (
                 <div className={styles.preview}>
                   <p>
                     الدين الجديد:{" "}
                     <strong>
-                      {Number(increaseCustomer.debt || 0) + Number(increaseAmount || 0)} EGP
+                      {Number(increaseCustomer.debt || 0) +
+                        Number(increaseAmount || 0)}{" "}
+                      EGP
                     </strong>
                   </p>
                 </div>
               )}
               <div className={styles.modalActions}>
-                <button className={styles.cancelBtn} onClick={closeIncreaseModal}>
+                <button
+                  className={styles.cancelBtn}
+                  onClick={closeIncreaseModal}
+                >
                   إلغاء
                 </button>
                 <button
@@ -1039,7 +1160,10 @@ function DebtsContent() {
       {/* Details Popup */}
       {showDetailsPopup && (
         <div className={styles.modalOverlay} onClick={closeDetailsPopup}>
-          <div className={styles.detailsModal} onClick={(e) => e.stopPropagation()}>
+          <div
+            className={styles.detailsModal}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className={styles.modalHeader}>
               <h3>تفاصيل السداد والزيادة</h3>
               <button className={styles.closeBtn} onClick={closeDetailsPopup}>
@@ -1053,7 +1177,9 @@ function DebtsContent() {
                 </p>
               </div>
               {detailsPayments.length === 0 ? (
-                <p className={styles.emptyText}>لا توجد عمليات سداد أو زيادة لهذا العميل.</p>
+                <p className={styles.emptyText}>
+                  لا توجد عمليات سداد أو زيادة لهذا العميل.
+                </p>
               ) : (
                 <div className={styles.detailsTableWrapper}>
                   <table className={styles.detailsTable}>
@@ -1065,12 +1191,14 @@ function DebtsContent() {
                         <th>التاريخ</th>
                         <th>نوع العملية</th>
                         <th>مصدر السداد</th>
+                        <th>ملاحظة</th>
                         <th>حذف</th>
                       </tr>
                     </thead>
                     <tbody>
                       {detailsPayments.map((p) => {
-                        const isIncrease = p.type === "زيادة" || p.source === "زيادة";
+                        const isIncrease =
+                          p.type === "زيادة" || p.source === "زيادة";
                         return (
                           <tr key={p.id}>
                             <td>{p.userName || "-"}</td>
@@ -1082,43 +1210,62 @@ function DebtsContent() {
                                 : new Date(p.date).toLocaleDateString("ar-EG")}
                             </td>
                             <td>
-                              <span style={{ 
-                                color: isIncrease ? "#ff9800" : "#2e7d32",
-                                fontWeight: 600 
-                              }}>
+                              <span
+                                style={{
+                                  color: isIncrease ? "#ff9800" : "#2e7d32",
+                                  fontWeight: 600,
+                                }}
+                              >
                                 {isIncrease ? "زيادة" : "سداد"}
                               </span>
                             </td>
-                            <td>{isIncrease ? "-" : (p.source || "-")}</td>
+                            <td>{isIncrease ? "-" : p.source || "-"}</td>
+                            <td>{p.notes || "-"}</td>
                             <td>
                               <button
                                 className={styles.deletePaymentBtn}
                                 onClick={async () => {
                                   try {
-                                    const paymentRef = doc(db, "debtsPayments", p.id);
-                                    const paymentSnap = await getDoc(paymentRef);
+                                    const paymentRef = doc(
+                                      db,
+                                      "debtsPayments",
+                                      p.id
+                                    );
+                                    const paymentSnap = await getDoc(
+                                      paymentRef
+                                    );
                                     if (!paymentSnap.exists()) {
                                       showError("العملية غير موجودة");
                                       return;
                                     }
                                     const paymentData = paymentSnap.data();
-                                    const isIncreaseOperation = paymentData.type === "زيادة" || paymentData.source === "زيادة";
+                                    const isIncreaseOperation =
+                                      paymentData.type === "زيادة" ||
+                                      paymentData.source === "زيادة";
 
                                     await deleteDoc(paymentRef);
 
-                                    const debtRef = doc(db, "debts", paymentData.debtid);
+                                    const debtRef = doc(
+                                      db,
+                                      "debts",
+                                      paymentData.debtid
+                                    );
                                     const debtSnap = await getDoc(debtRef);
 
                                     if (debtSnap.exists()) {
-                                      const currentDebt = Number(debtSnap.data().debt || 0);
-                                      const amount = Number(paymentData.paidAmount || 0);
-                                      
+                                      const currentDebt = Number(
+                                        debtSnap.data().debt || 0
+                                      );
+                                      const amount = Number(
+                                        paymentData.paidAmount || 0
+                                      );
+
                                       // إذا كانت عملية زيادة، نخصم المبلغ من الدين
                                       // إذا كانت عملية سداد، نضيف المبلغ للدين
-                                      const newDebt = isIncreaseOperation 
-                                        ? currentDebt - amount 
+                                      const newDebt = isIncreaseOperation
+                                        ? currentDebt - amount
                                         : currentDebt + amount;
-                                      
+
                                       await updateDoc(debtRef, {
                                         debt: Math.max(0, newDebt), // التأكد من أن الدين لا يكون سالب
                                       });
@@ -1128,15 +1275,21 @@ function DebtsContent() {
                                     }
 
                                     // حذف من dailyProfit فقط إذا كانت عملية سداد من الخزنة
-                                    if (paymentData.source === "خزنة" && !isIncreaseOperation) {
+                                    if (
+                                      paymentData.source === "خزنة" &&
+                                      !isIncreaseOperation
+                                    ) {
                                       const profitQuery = query(
                                         collection(db, "dailyProfit"),
                                         where("debtPaymentId", "==", p.id)
                                       );
-                                      const profitSnapshot = await getDocs(profitQuery);
-                                      const deleteProfitPromises = profitSnapshot.docs.map((docSnap) =>
-                                        deleteDoc(docSnap.ref)
+                                      const profitSnapshot = await getDocs(
+                                        profitQuery
                                       );
+                                      const deleteProfitPromises =
+                                        profitSnapshot.docs.map((docSnap) =>
+                                          deleteDoc(docSnap.ref)
+                                        );
                                       await Promise.all(deleteProfitPromises);
                                     }
 

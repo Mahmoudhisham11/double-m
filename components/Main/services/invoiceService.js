@@ -51,6 +51,7 @@ export const invoiceService = {
         employee: employee || "غير محدد",
         discount: clientData.discount || 0,
         discountNotes: clientData.discountNotes || "",
+        paymentMethod: clientData.paymentMethod || "نقدي",
       };
 
       // Save invoice

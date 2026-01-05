@@ -203,7 +203,25 @@ function CloseDayContent() {
         );
       }
 
-      return salesArr.map((sale, index) => {
+      // ترتيب الفواتير من الأصغر للأكبر بناءً على رقم الفاتورة
+      const sortedSales = [...salesArr].sort((a, b) => {
+        const getInvoiceNumber = (sale) => {
+          const invoice = sale.invoiceNumber ?? sale.id ?? "";
+          // محاولة استخراج الرقم من النص
+          const numMatch = String(invoice).match(/\d+/);
+          if (numMatch) {
+            return parseInt(numMatch[0], 10);
+          }
+          // إذا لم نجد رقم، نستخدم قيمة افتراضية كبيرة
+          return Number.MAX_SAFE_INTEGER;
+        };
+        
+        const numA = getInvoiceNumber(a);
+        const numB = getInvoiceNumber(b);
+        return numA - numB;
+      });
+
+      return sortedSales.map((sale, index) => {
         const invoice = sale.invoiceNumber ?? sale.id ?? `sale-${index}`;
         const total = sale.total ?? sale.subtotal ?? 0;
         const profit = sale.profit ?? 0;

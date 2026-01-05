@@ -55,6 +55,9 @@ function ProductsContent() {
   const [productToDelete, setProductToDelete] = useState(null);
   const [filterSection, setFilterSection] = useState("الكل");
   const [isSaving, setIsSaving] = useState(false);
+  const [showAddQuantityModal, setShowAddQuantityModal] = useState(false);
+  const [productToAddQuantity, setProductToAddQuantity] = useState(null);
+  const [addQuantityValue, setAddQuantityValue] = useState("");
   const [form, setForm] = useState({
     name: "",
     buyPrice: "",
@@ -878,6 +881,125 @@ function ProductsContent() {
     },
     [showError]
   );
+
+  // Handle add quantity
+  const handleAddQuantity = (product) => {
+    setProductToAddQuantity(product);
+    setAddQuantityValue("");
+    setShowAddQuantityModal(true);
+  };
+
+  const handleConfirmAddQuantity = async () => {
+    if (!productToAddQuantity) return;
+
+    const quantityToAdd = Number(addQuantityValue);
+    if (isNaN(quantityToAdd) || quantityToAdd <= 0) {
+      showError("يرجى إدخال كمية صحيحة أكبر من صفر");
+      return;
+    }
+
+    const shop = localStorage.getItem("shop");
+    if (!shop) {
+      showError("حدث خطأ: المتجر غير محدد");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const productRef = doc(db, "lacosteProducts", productToAddQuantity.id);
+      const productSnap = await getDoc(productRef);
+      
+      if (!productSnap.exists()) {
+        showError("المنتج غير موجود");
+        return;
+      }
+
+      const productData = productSnap.data();
+      const currentQuantity = computeProductQuantity(productToAddQuantity);
+      const newQuantity = currentQuantity + quantityToAdd;
+
+      // تحديث كمية المنتج
+      let updatedData = { ...productData };
+      
+      if (productData.colors && productData.colors.length > 0) {
+        // إذا كان المنتج له ألوان، نضيف الكمية للون الأول
+        const updatedColors = productData.colors.map((c, idx) => {
+          if (idx === 0) {
+            // نضيف الكمية للون الأول
+            if (c.sizes && c.sizes.length > 0) {
+              // إذا كان اللون الأول له مقاسات، نضيف الكمية للمقاس الأول
+              return {
+                ...c,
+                sizes: c.sizes.map((s, sIdx) => 
+                  sIdx === 0 
+                    ? { ...s, qty: (s.qty || 0) + quantityToAdd }
+                    : s
+                ),
+              };
+            } else {
+              // إذا لم يكن له مقاسات، نضيف للكمية المباشرة
+              return {
+                ...c,
+                quantity: (c.quantity || 0) + quantityToAdd,
+              };
+            }
+          }
+          return c;
+        });
+        updatedData.colors = updatedColors;
+        updatedData.quantity = newQuantity;
+      } else {
+        // منتج بسيط بدون ألوان
+        updatedData.quantity = newQuantity;
+      }
+
+      await updateDoc(productRef, updatedData);
+
+      // إضافة منتج جديد في الوارد بنفس بيانات المنتج الأصلي
+      const today = new Date();
+      const formattedDate = `${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`;
+      
+      const waredProduct = {
+        code: productData.code,
+        name: productData.name,
+        buyPrice: productData.buyPrice || 0,
+        sellPrice: productData.sellPrice || 0,
+        finalPrice: productData.finalPrice || productData.sellPrice || 0,
+        quantity: quantityToAdd, // الكمية الجديدة فقط
+        colors: productData.colors || null,
+        sizeType: productData.sizeType || "",
+        category: productData.category || "",
+        section: productData.section || "",
+        merchantName: productData.merchantName || "",
+        date: Timestamp.now(),
+        shop: shop,
+        type: "product",
+      };
+
+      await addDoc(collection(db, "wared"), waredProduct);
+
+      // تحديث الـ state محلياً
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === productToAddQuantity.id
+            ? { ...p, quantity: newQuantity }
+            : p
+        )
+      );
+
+      success(`تم إضافة ${quantityToAdd} قطعة بنجاح. الكمية الجديدة: ${newQuantity}`);
+      
+      // إغلاق الـ modal
+      setShowAddQuantityModal(false);
+      setProductToAddQuantity(null);
+      setAddQuantityValue("");
+    } catch (err) {
+      console.error("Error adding quantity:", err);
+      showError(`حدث خطأ أثناء إضافة الكمية: ${err.message || "خطأ غير معروف"}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
   const confirmDeleteSelected = async () => {
     if (!deleteTarget || !deleteForm.length) return;
 
@@ -1241,6 +1363,14 @@ function ProductsContent() {
                           {/* خيارات */}
                           <td className={styles.actions}>
                             <div className={styles.actionButtons}>
+                              <button
+                                className={styles.actionBtn}
+                                onClick={() => handleAddQuantity(product)}
+                                title="إضافة كمية"
+                                style={{ color: "#4CAF50" }}
+                              >
+                                <FaPlus />
+                              </button>
                               {CONFIG.ADMIN_EMAILS.includes(userName) && (
                                 <>
                                   <button
@@ -1779,6 +1909,83 @@ function ProductsContent() {
         cancelText="إلغاء"
         type="danger"
       />
+
+      {/* Add Quantity Modal */}
+      {showAddQuantityModal && productToAddQuantity && (
+        <div
+          className={styles.modalOverlay}
+          onClick={() => {
+            setShowAddQuantityModal(false);
+            setProductToAddQuantity(null);
+            setAddQuantityValue("");
+          }}
+        >
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalContent}>
+              <div className={styles.modalHeader}>
+                <h3>إضافة كمية - {productToAddQuantity.name}</h3>
+                <button
+                  onClick={() => {
+                    setShowAddQuantityModal(false);
+                    setProductToAddQuantity(null);
+                    setAddQuantityValue("");
+                  }}
+                  className={styles.closeBtn}
+                >
+                  ✖
+                </button>
+              </div>
+
+              <div className={styles.modalSection}>
+                <p style={{ marginBottom: "15px", color: "#666" }}>
+                  الكمية الحالية: <strong>{computeProductQuantity(productToAddQuantity)}</strong>
+                </p>
+                <div className="inputContainer">
+                  <label>
+                    <FaPlus />
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="أدخل الكمية المضافة"
+                    value={addQuantityValue}
+                    onChange={(e) => setAddQuantityValue(e.target.value)}
+                    min="1"
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div
+                style={{
+                  marginTop: "12px",
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: "8px",
+                }}
+              >
+                <button
+                  onClick={() => {
+                    setShowAddQuantityModal(false);
+                    setProductToAddQuantity(null);
+                    setAddQuantityValue("");
+                  }}
+                  className={styles.btnOutline}
+                  disabled={isSaving}
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={handleConfirmAddQuantity}
+                  className={styles.btnPrimary}
+                  disabled={isSaving || !addQuantityValue || Number(addQuantityValue) <= 0}
+                >
+                  {isSaving ? "جاري الإضافة..." : "إضافة"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
