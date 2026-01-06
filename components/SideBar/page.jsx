@@ -81,7 +81,7 @@ function SideBar({openSideBar, setOpenSideBar}) {
                     <span><TbReportSearch/></span>
                     <span>تقفيلة اليوم</span>
                 </Link>
-                {currentUser === "mostafabeso10@gmail.com" || currentUser === "mahmoud" && 
+                {currentUser === "mostafabeso10@gmail.com" && 
                   <Link href={'/profit'} className={styles.actionLinks}>
                     <span><TbReportSearch/></span>
                     <span>الارباح</span>
