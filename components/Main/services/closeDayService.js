@@ -57,13 +57,22 @@ export const closeDayService = {
       masrofatSnapshot.forEach((docSnap) => {
         const data = docSnap.data();
         allMasrofat.push({ id: docSnap.id, ...data });
-        netMasrof += data.masrof || 0;
+
+        const reason = data.reason;
+        const masrofValue = data.masrof || 0;
+        const isExcluded =
+          reason === "فاتورة مرتجع" || reason === "مصروف سداد";
+
+        // صافي المصروفات التي تؤثر على الربح (بدون فاتورة مرتجع / مصروف سداد)
+        if (!isExcluded) {
+          netMasrof += masrofValue;
+        }
 
         if (data.date === todayStr) {
-          if (data.reason === "فاتورة مرتجع") {
+          if (reason === "فاتورة مرتجع") {
             returnedProfit += data.profit || 0;
-          } else {
-            totalMasrofat += data.masrof || 0;
+          } else if (!isExcluded) {
+            totalMasrofat += masrofValue;
           }
         }
       });

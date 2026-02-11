@@ -28,16 +28,21 @@ export default function StatsCards({
     // صافي المبيع = المبيعات - جميع المصروفات (بما فيها فاتورة مرتجع)
     const finallyTotal = Number(totalSales) - Number(totalMasrofatWithReturn || totalMasrofat);
     
-    const employeeSales = {};
+    // حساب أنشط موظف بناءً على عدد القطع المباعة من dailySales (وليس إجمالي المبلغ)
+    const employeePieces = {};
     invoices.forEach((invoice) => {
-      if (invoice.employee && invoice.employee !== "غير محدد") {
-        employeeSales[invoice.employee] =
-          (employeeSales[invoice.employee] || 0) + invoice.total;
-      }
+      if (!invoice.employee || invoice.employee === "غير محدد") return;
+      const piecesInInvoice = (invoice.cart || []).reduce(
+        (sum, item) => sum + (item.quantity || 0),
+        0
+      );
+      if (!piecesInInvoice) return;
+      employeePieces[invoice.employee] =
+        (employeePieces[invoice.employee] || 0) + piecesInInvoice;
     });
     
     const topEmployee =
-      Object.entries(employeeSales).sort((a, b) => b[1] - a[1])[0]?.[0] ||
+      Object.entries(employeePieces).sort((a, b) => b[1] - a[1])[0]?.[0] ||
       "لا يوجد موظفين";
 
     return {

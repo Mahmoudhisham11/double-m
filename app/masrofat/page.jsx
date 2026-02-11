@@ -33,9 +33,11 @@ function MasrofatContent() {
   const [auth, setAuth] = useState(false);
   const [loading, setLoading] = useState(true);
   const [active, setActive] = useState(false);
-  const [isReturnExpense, setIsReturnExpense] = useState(false);
+  // نوع مصروف خاص لا يدخل في صافي الربح (مثل فاتورة مرتجع / مصروف سداد)
+  const [specialExpenseType, setSpecialExpenseType] = useState(null); // null | "فاتورة مرتجع" | "مصروف سداد"
   const [masrof, setMasrof] = useState("");
   const [reason, setReason] = useState("");
+  const [note, setNote] = useState("");
   const [shop, setShop] = useState("");
   const [masrofatList, setMasrofatList] = useState([]);
   const [dailySales, setDailySales] = useState(0);
@@ -147,10 +149,10 @@ function MasrofatContent() {
 
   // إضافة مصروف جديد
   const handleAddMasrof = async () => {
-    // في حالة المرتجع، السبب تلقائي
-    const finalReason = isReturnExpense ? "فاتورة مرتجع" : reason;
+    // في حالة الأنواع الخاصة، السبب تلقائي (فاتورة مرتجع / مصروف سداد)
+    const finalReason = specialExpenseType || reason;
     
-    if (!masrof || (!isReturnExpense && !reason)) {
+    if (!masrof || (!specialExpenseType && !reason)) {
       showError("يرجى ملء كل الحقول");
       return;
     }
@@ -192,6 +194,7 @@ function MasrofatContent() {
       await addDoc(collection(db, "masrofat"), {
         masrof: masrofValue,
         reason: finalReason,
+        note: note?.trim() || "",
         date: formattedDate,
         shop,
       });
@@ -200,7 +203,8 @@ function MasrofatContent() {
       setMasrof("");
       setReason("");
       setActive(false);
-      setIsReturnExpense(false);
+      setSpecialExpenseType(null);
+      setNote("");
     } catch (error) {
       console.error("خطأ أثناء الإضافة:", error);
       showError("حدث خطأ أثناء إضافة المصروف");
@@ -355,10 +359,11 @@ function MasrofatContent() {
             <button
               onClick={() => {
                 setActive(!active);
-                setIsReturnExpense(false);
+                setSpecialExpenseType(null);
                 setEditingMasrof(null);
                 setMasrof("");
                 setReason("");
+                setNote("");
               }}
               className={styles.addBtn}
             >
@@ -367,14 +372,28 @@ function MasrofatContent() {
             <button
               onClick={() => {
                 setActive(true);
-                setIsReturnExpense(true);
+                setSpecialExpenseType("فاتورة مرتجع");
                 setEditingMasrof(null);
                 setMasrof("");
                 setReason("");
+                setNote("");
               }}
               className={styles.returnBtn}
             >
               مصروف مرتجع
+            </button>
+            <button
+              onClick={() => {
+                setActive(true);
+                setSpecialExpenseType("مصروف سداد");
+                setEditingMasrof(null);
+                setMasrof("");
+                setReason("");
+                setNote("");
+              }}
+              className={styles.returnBtn}
+            >
+              مصروف سداد
             </button>
           </div>
         </div>
@@ -420,7 +439,7 @@ function MasrofatContent() {
                   onChange={(e) => setMasrof(e.target.value)}
                 />
               </div>
-              {!isReturnExpense && (
+              {!specialExpenseType && (
                 <div className="inputContainer">
                   <label>
                     <FaQuestion />
@@ -433,7 +452,7 @@ function MasrofatContent() {
                   />
                 </div>
               )}
-              {isReturnExpense && (
+              {specialExpenseType && (
                 <div className="inputContainer">
                   <label>
                     <FaQuestion />
@@ -441,25 +460,41 @@ function MasrofatContent() {
                   <input
                     type="text"
                     placeholder="السبب"
-                    value="فاتورة مرتجع"
+                    value={specialExpenseType}
                     disabled
                     style={{ opacity: 0.7, cursor: "not-allowed" }}
                   />
                 </div>
               )}
+              <div className="inputContainer">
+                <label>
+                  <FaQuestion />
+                </label>
+                <input
+                  type="text"
+                  placeholder="ملاحظة (اختياري)"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                />
+              </div>
             </div>
             <div className={styles.actionButtonsContainer}>
               <button className={styles.addBtn} onClick={handleAddMasrof}>
-                {isReturnExpense ? "إضافة مصروف مرتجع" : "إضافة المصروف"}
+                {specialExpenseType === "فاتورة مرتجع"
+                  ? "إضافة مصروف مرتجع"
+                  : specialExpenseType === "مصروف سداد"
+                  ? "إضافة مصروف سداد"
+                  : "إضافة المصروف"}
               </button>
-              {isReturnExpense && (
+              {specialExpenseType && (
                 <button
                   className={styles.cancelBtn}
                   onClick={() => {
                     setActive(false);
-                    setIsReturnExpense(false);
+                    setSpecialExpenseType(null);
                     setMasrof("");
                     setReason("");
+                    setNote("");
                   }}
                 >
                   إلغاء
@@ -488,6 +523,7 @@ function MasrofatContent() {
                   </th>
                   <th>المصروف</th>
                   <th>السبب</th>
+                  <th>الملاحظة</th>
                   <th>التاريخ</th>
                   <th>خيارات</th>
                 </tr>
@@ -495,7 +531,7 @@ function MasrofatContent() {
               <tbody>
                 {filteredMasrofat.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className={styles.emptyCell}>
+                    <td colSpan={6} className={styles.emptyCell}>
                       <div className={styles.emptyState}>
                         <p>❌ لا توجد مصروفات</p>
                       </div>
@@ -519,6 +555,7 @@ function MasrofatContent() {
                         {item.masrof} EGP
                       </td>
                       <td className={styles.reasonCell}>{item.reason}</td>
+                      <td className={styles.noteCell}>{item.note || "-"}</td>
                       <td className={styles.dateCell}>{item.date}</td>
                       <td className={styles.actionsCell}>
                         <div className={styles.actionButtons}>

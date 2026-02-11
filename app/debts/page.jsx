@@ -604,6 +604,14 @@ function DebtsContent() {
     );
     const snapshot = await getDocs(q);
     const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+    // ترتيب العمليات حسب التاريخ تنازليًا (أحدث عملية أولاً سواء كانت سداد أو زيادة)
+    data.sort((a, b) => {
+      const dateA = a.date?.toDate ? a.date.toDate().getTime() : new Date(a.date).getTime();
+      const dateB = b.date?.toDate ? b.date.toDate().getTime() : new Date(b.date).getTime();
+      return dateB - dateA;
+    });
+
     setDetailsPayments(data);
     setShowDetailsPopup(true);
   };

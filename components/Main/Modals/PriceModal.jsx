@@ -7,6 +7,7 @@ import { getAvailableQuantity } from "@/utils/productHelpers";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/app/firebase";
 import PasswordModal from "./PasswordModal";
+import { FiEye, FiEyeOff } from "react-icons/fi";
 
 export default function PriceModal({
   isOpen,
@@ -18,6 +19,7 @@ export default function PriceModal({
   const [price, setPrice] = useState(0);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [pendingPrice, setPendingPrice] = useState(null);
+  const [showFinalPrice, setShowFinalPrice] = useState(true);
 
   useEffect(() => {
     if (product) {
@@ -120,6 +122,11 @@ export default function PriceModal({
     <div className={styles.popupOverlay} onClick={onClose}>
       <div className={styles.popupBox} onClick={(e) => e.stopPropagation()}>
         <h3>تحديد السعر — {product.name}</h3>
+        {product.code && (
+          <div style={{ marginBottom: "10px", fontSize: "14px", color: "#666" }}>
+            <strong>كود المنتج:</strong> {product.code}
+          </div>
+        )}
         <label>السعر:</label>
         <input
           type="number"
@@ -129,7 +136,26 @@ export default function PriceModal({
           className={styles.modalInput}
         />
         <div className={styles.priceInfo}>
-          <p>السعر النهائي: {product.finalPrice} EGP</p>
+          <p style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span>السعر النهائي:</span>
+            <span>{showFinalPrice ? `${product.finalPrice} EGP` : "*****"}</span>
+            <button
+              type="button"
+              onClick={() => setShowFinalPrice(!showFinalPrice)}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: "4px",
+                display: "flex",
+                alignItems: "center",
+                color: "#666",
+              }}
+              title={showFinalPrice ? "إخفاء السعر" : "إظهار السعر"}
+            >
+              {showFinalPrice ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+            </button>
+          </p>
           <p>السعر الافتراضي: {product.sellPrice} EGP</p>
         </div>
         <div className={styles.popupBtns}>

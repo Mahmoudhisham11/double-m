@@ -15,16 +15,19 @@ import {
   updateDoc,
   onSnapshot,
 } from "firebase/firestore";
+import { useRouter } from "next/navigation";
 import Loader from "@/components/Loader/Loader";
 import {
   NotificationProvider,
   useNotification,
 } from "@/contexts/NotificationContext";
+import { PERMISSIONS } from "@/constants/config";
 import ConfirmModal from "@/components/Main/Modals/ConfirmModal";
 
 function ProfitContent() {
   const { success, error: showError, warning } = useNotification();
   const [shop, setShop] = useState("");
+  const [userName, setUserName] = useState("");
   const [resetAt, setResetAt] = useState(null);
   const [reports, setReports] = useState([]);
   const [withdraws, setWithdraws] = useState([]);
@@ -35,17 +38,20 @@ function ProfitContent() {
   const [grossProfit, setGrossProfit] = useState(0);
   const [netProfit, setNetProfit] = useState(0);
   const [mostafaBalance, setMostafaBalance] = useState(0);
-  const [midoBalance, setMidoBalance] = useState(0);
   const [doubleMBalance, setDoubleMBalance] = useState(0);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [isHidden, setIsHidden] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [operationalCashTotal, setOperationalCashTotal] = useState(0);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [canViewProfit, setCanViewProfit] = useState(false);
 
   const [showPopup, setShowPopup] = useState(false);
   const [withdrawPerson, setWithdrawPerson] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawNotes, setWithdrawNotes] = useState("");
+  const [affectNetProfit, setAffectNetProfit] = useState(false);
   const [showPayPopup, setShowPayPopup] = useState(false);
   const [payAmount, setPayAmount] = useState("");
   const [payPerson, setPayPerson] = useState("");
@@ -56,16 +62,31 @@ function ProfitContent() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const router = useRouter();
+
   // Get shop and hidden state
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setShop(localStorage.getItem("shop") || "");
+      const storedShop = localStorage.getItem("shop") || "";
+      const storedUser = localStorage.getItem("userName") || "";
+      setShop(storedShop);
+      setUserName(storedUser);
+
       const savedHiddenState = localStorage.getItem("hideFinance");
       if (savedHiddenState !== null) setIsHidden(savedHiddenState === "true");
       const savedReset = localStorage.getItem("resetAt");
       if (savedReset) setResetAt(new Date(savedReset));
+
+      const hasAccess = PERMISSIONS.VIEW_PROFIT(storedUser);
+      if (!storedUser || !hasAccess) {
+        showError("ليس لديك الصلاحية للوصول إلى صفحة الأرباح❌");
+        router.push("/");
+      } else {
+        setCanViewProfit(true);
+      }
+      setAuthChecked(true);
     }
-  }, []);
+  }, [router, showError]);
 
   // Helper functions
   const arabicToEnglishNumbers = useCallback((str) => {
@@ -149,58 +170,11 @@ function ProfitContent() {
     }
   }, [shop, showError]);
 
-  // Fetch all data
-  const fetchData = useCallback(async () => {
-    if (!shop) return;
-
-    try {
-      setLoading(true);
-
-      // Fetch reports
-      const reportsSnap = await getDocs(
-        query(collection(db, "reports"), where("shop", "==", shop))
-      );
-      setReports(
-        reportsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-      );
-
-      // Fetch withdraws
-      const withdrawsSnap = await getDocs(
-        query(collection(db, "withdraws"), where("shop", "==", shop))
-      );
-      setWithdraws(
-        withdrawsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-      );
-
-      // Fetch daily profit
-      const dailyProfitSnap = await getDocs(
-        query(collection(db, "dailyProfit"), where("shop", "==", shop))
-      );
-      setDailyProfitData(
-        dailyProfitSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-      );
-
-      // Fetch masrofat (expenses)
-      const masrofatSnap = await getDocs(
-        query(collection(db, "masrofat"), where("shop", "==", shop))
-      );
-      setMasrofat(
-        masrofatSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-      );
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      showError("حدث خطأ أثناء جلب البيانات");
-    } finally {
-      setLoading(false);
-    }
-  }, [shop, showError]);
-
   // Initial fetch
   useEffect(() => {
     if (!shop) return;
-    fetchData();
     fetchReset();
-  }, [shop, fetchData, fetchReset]);
+  }, [shop, fetchReset]);
 
   // Real-time updates
   useEffect(() => {
@@ -210,6 +184,7 @@ function ProfitContent() {
       query(collection(db, "reports"), where("shop", "==", shop)),
       (snapshot) => {
         setReports(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+        setLoading(false);
       },
       (error) => {
         console.error("Error in reports subscription:", error);
@@ -223,6 +198,7 @@ function ProfitContent() {
         setWithdraws(
           snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
         );
+        setLoading(false);
       },
       (error) => {
         console.error("Error in withdraws subscription:", error);
@@ -236,6 +212,7 @@ function ProfitContent() {
         setDailyProfitData(
           snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
         );
+        setLoading(false);
       },
       (error) => {
         console.error("Error in dailyProfit subscription:", error);
@@ -249,6 +226,7 @@ function ProfitContent() {
         setMasrofat(
           snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
         );
+        setLoading(false);
       },
       (error) => {
         console.error("Error in masrofat subscription:", error);
@@ -273,8 +251,8 @@ function ProfitContent() {
         grossProfit: 0,
         netProfit: 0,
         mostafa: 0, 
-        mido: 0, 
-        doubleM: 0 
+        doubleM: 0,
+        operationalCashTotal: 0,
       };
 
     const from = dateFrom
@@ -285,34 +263,51 @@ function ProfitContent() {
     const isUsingDateFilter = Boolean(dateFrom || dateTo);
     const effectiveFrom = isUsingDateFilter ? from : resetAt || from;
 
+    // بيانات الكاش (الخزنة) تعتمد فقط على فلتر التاريخ ولا تتأثر بالتصفير resetAt
     const dailyForCash = dailyProfitData.filter((d) => {
       const dDate = parseDate(d.date) || parseDate(d.createdAt);
       return dDate && dDate >= from && dDate <= to;
     });
 
-    const filteredDaily = dailyProfitData.filter((d) => {
+    // بيانات الأرباح (لصافي الربح) تتأثر بالتصفير resetAt
+    const dailyForProfit = dailyProfitData.filter((d) => {
       const dDate = parseDate(d.date) || parseDate(d.createdAt);
       return dDate && dDate >= effectiveFrom && dDate <= to;
     });
 
+    // بيانات الأرباح والأرصدة (مصطفى/ميدو/دبل M) تبدأ من resetAt في حالة عدم وجود فلتر تاريخ
     const filteredReports = reports.filter((r) => {
-      const rDate = parseDate(r.date) || parseDate(r.createdAt);
+      // نفضل createdAt لأن resetAt فيه الوقت، وليس اليوم فقط
+      const rDate = parseDate(r.createdAt) || parseDate(r.date);
       return rDate && rDate >= effectiveFrom && rDate <= to;
     });
 
-    const filteredWithdraws = withdraws.filter((w) => {
-      const wDate = parseDate(w.date) || parseDate(w.createdAt);
+    const withdrawsForProfit = withdraws.filter((w) => {
+      // نفضل createdAt لنضمن أن السحوبات بعد لحظة التصفير في نفس اليوم تُحتسب
+      const wDate = parseDate(w.createdAt) || parseDate(w.date);
       return wDate && wDate >= effectiveFrom && wDate <= to;
     });
 
-    // تصفية المصروفات حسب التاريخ
-    const filteredMasrofat = masrofat.filter((m) => {
-      const mDate = parseDate(m.date) || parseDate(m.createdAt);
+    // مصروفات خاصة بالأرباح (تتأثر بالتصفير)
+    const filteredMasrofatForProfit = masrofat.filter((m) => {
+      const mDate = parseDate(m.createdAt) || parseDate(m.date);
       return mDate && mDate >= effectiveFrom && mDate <= to;
     });
 
-    const totalMasrofat = dailyForCash.reduce(
-      (sum, d) => sum + (d.totalMasrofat || 0),
+    // مصروفات خاصة بالخزنة (لا تتأثر بالتصفير)
+    const masrofatForCash = masrofat.filter((m) => {
+      const mDate = parseDate(m.date) || parseDate(m.createdAt);
+      return mDate && mDate >= from && mDate <= to;
+    });
+
+    const totalMasrofat = masrofatForCash.reduce(
+      (sum, m) => sum + Number(m.masrof || 0),
+      0
+    );
+
+    // مصروفات اليوم من dailyProfit.totalMasrofat الخاصة بالخزنة
+    const totalMasrofatFromDailyForCash = dailyForCash.reduce(
+      (sum, d) => sum + Number(d.totalMasrofat || 0),
       0
     );
     const totalCash = dailyForCash.reduce((sum, d) => {
@@ -323,9 +318,16 @@ function ProfitContent() {
       return sum + sales;
     }, 0);
 
-    let remainingCash = totalCash - totalMasrofat;
+    // الخزنة = إجمالي المبيعات - (مصاريف masrofat + مصاريف dailyProfit.totalMasrofat)
+    let remainingCash = totalCash - totalMasrofat - totalMasrofatFromDailyForCash;
 
-    filteredWithdraws.forEach((w) => {
+    // معاملات السحب/الإيداع التي تؤثر على الخزنة تعتمد فقط على فلتر التاريخ
+    const withdrawsForCash = withdraws.filter((w) => {
+      const wDate = parseDate(w.date) || parseDate(w.createdAt);
+      return wDate && wDate >= from && wDate <= to;
+    });
+
+    withdrawsForCash.forEach((w) => {
       const remaining = Number(w.amount || 0) - Number(w.paid || 0);
       if (w.person === "الخزنة") {
         remainingCash += remaining;
@@ -350,52 +352,109 @@ function ProfitContent() {
       profitValue += reportProfit;
     });
 
-    // حساب المصروفات بدون "فاتورة مرتجع"
-    const totalMasrofatWithoutReturn = filteredMasrofat.reduce((sum, m) => {
-      // استبعاد المصروفات التي سببها "فاتورة مرتجع"
-      if (m.reason === "فاتورة مرتجع") {
+    // حساب المصروفات بدون "فاتورة مرتجع" و "مصروف سداد" (للأرباح فقط)
+    const totalMasrofatWithoutReturn = filteredMasrofatForProfit.reduce((sum, m) => {
+      // استبعاد المصروفات التي سببها "فاتورة مرتجع" أو "مصروف سداد"
+      if (m.reason === "فاتورة مرتجع" || m.reason === "مصروف سداد") {
         return sum;
       }
       return sum + Number(m.masrof || 0);
     }, 0);
 
-    // حساب صافي الربح = مجموع أرباح كل فاتورة - المصروفات (بدون فاتورة مرتجع)
-    const netProfitValue = profitValue - totalMasrofatWithoutReturn;
-
-    let remainingProfit = profitValue;
-    const totalMasrofatT = filteredDaily.reduce(
+    // مصروفات اليوم من dailyProfit.totalMasrofat الخاصة بصافي الربح (تتأثر بالتصفير)
+    const totalMasrofatFromDailyForProfit = dailyForProfit.reduce(
       (sum, d) => sum + Number(d.totalMasrofat || 0),
       0
     );
-    remainingProfit -= totalMasrofatT;
 
-    let mostafaSum = 0,
-      midoSum = 0,
-      doubleMSum = 0;
-    filteredWithdraws.forEach((w) => {
+    // حساب السحوبات التي تؤثر على صافي الربح
+    const withdrawsAffectingNetProfit = withdrawsForProfit.filter((w) => {
+      return w.affectNetProfit === true && w.person !== "الخزنة";
+    });
+    
+    const totalWithdrawsAffectingNetProfit = withdrawsAffectingNetProfit.reduce(
+      (sum, w) => {
+        const remaining = Number(w.amount || 0) - Number(w.paid || 0);
+        return sum + remaining;
+      },
+      0
+    );
+
+    // حساب صافي الربح = مجموع أرباح الفواتير - (المصروفات بدون فاتورة مرتجع + مصروفات dailyProfit من بعد resetAt + السحوبات التي تؤثر على صافي الربح)
+    const netProfitValue =
+      profitValue - totalMasrofatWithoutReturn - totalMasrofatFromDailyForProfit - totalWithdrawsAffectingNetProfit;
+
+    let mostafaSum = 0;
+    let doubleMSum = 0;
+
+    // أرصدة الشركاء تتأثر بالتصفير resetAt
+    withdrawsForProfit.forEach((w) => {
       const remaining = Number(w.amount || 0) - Number(w.paid || 0);
-      if (w.person !== "الخزنة") {
-        remainingProfit -= remaining;
-      }
       if (w.person === "مصطفى") mostafaSum += remaining;
-      if (w.person === "ميدو") midoSum += remaining;
       if (w.person === "دبل M") doubleMSum += remaining;
     });
 
-    const returnedProfit = filteredDaily.reduce(
-      (sum, d) => sum + Number(d.returnedProfit || 0),
+    // حساب الخزنة التشغيلية (بدون تأثير فلتر التاريخ وبدون علاقة بالتصفير)
+    const operationalFrom = new Date("1970-01-01");
+    const operationalTo = new Date();
+
+    const operationalDailyForCash = dailyProfitData.filter((d) => {
+      const dDate = parseDate(d.date) || parseDate(d.createdAt);
+      return dDate && dDate >= operationalFrom && dDate <= operationalTo;
+    });
+
+    const operationalMasrofat = masrofat.filter((m) => {
+      const mDate = parseDate(m.date) || parseDate(m.createdAt);
+      return mDate && mDate >= operationalFrom && mDate <= operationalTo;
+    });
+
+    const operationalTotalMasrofat = operationalMasrofat.reduce(
+      (sum, m) => sum + Number(m.masrof || 0),
       0
     );
-    remainingProfit -= returnedProfit;
+
+    const operationalTotalMasrofatDaily = operationalDailyForCash.reduce(
+      (sum, d) => sum + Number(d.totalMasrofat || 0),
+      0
+    );
+
+    const operationalTotalMasrofatCombined =
+      operationalTotalMasrofat + operationalTotalMasrofatDaily;
+
+    const operationalTotalCash = operationalDailyForCash.reduce((sum, d) => {
+      const sales = Number(d.totalSales || 0);
+      if (d.type === "سداد") {
+        return sum - sales;
+      }
+      return sum + sales;
+    }, 0);
+
+    const operationalRemainingCash =
+      operationalTotalCash - operationalTotalMasrofatCombined;
+
+    if (
+      process.env.NODE_ENV !== "production" &&
+      (remainingCash < 0 ||
+        netProfitValue < 0 ||
+        mostafaSum < 0 ||
+        doubleMSum < 0)
+    ) {
+      console.warn("[Profit] Negative financial value detected", {
+        remainingCash,
+        netProfitValue,
+        mostafaSum,
+        doubleMSum,
+      });
+    }
 
     return {
-      cashTotal: remainingCash < 0 ? 0 : remainingCash,
+      cashTotal: remainingCash,
       profit: profitValue, // الربح = مجموع أرباح كل فاتورة
       grossProfit: grossProfitValue,
-      netProfit: netProfitValue < 0 ? 0 : netProfitValue, // صافي الربح = مجموع أرباح الفواتير - المصروفات (بدون فاتورة مرتجع)
-      mostafa: mostafaSum < 0 ? 0 : mostafaSum,
-      mido: midoSum < 0 ? 0 : midoSum,
-      doubleM: doubleMSum < 0 ? 0 : doubleMSum,
+      netProfit: netProfitValue, // صافي الربح = مجموع أرباح الفواتير - المصروفات (بدون فاتورة مرتجع) - السحوبات التي تؤثر على صافي الربح
+      mostafa: mostafaSum,
+      doubleM: doubleMSum,
+      operationalCashTotal: operationalRemainingCash,
     };
   }, [
     dateFrom,
@@ -415,8 +474,8 @@ function ProfitContent() {
     setGrossProfit(calculatedTotals.grossProfit);
     setNetProfit(calculatedTotals.netProfit);
     setMostafaBalance(calculatedTotals.mostafa);
-    setMidoBalance(calculatedTotals.mido);
     setDoubleMBalance(calculatedTotals.doubleM);
+    setOperationalCashTotal(calculatedTotals.operationalCashTotal);
   }, [calculatedTotals]);
 
   const toggleHidden = useCallback(() => {
@@ -437,6 +496,7 @@ function ProfitContent() {
       showError("المبلغ غير صالح");
       return;
     }
+    // التحقق من رصيد الخزنة الحالي الظاهر للمستخدم فقط
     if (amount > cashTotal) {
       showError("رصيد الخزنة غير كافي");
       return;
@@ -453,12 +513,14 @@ function ProfitContent() {
         date: formatDate(newDate),
         createdAt: Timestamp.fromDate(newDate),
         paid: 0,
+        affectNetProfit: affectNetProfit,
       });
 
       success("✅ تم إضافة السحب بنجاح");
       setWithdrawPerson("");
       setWithdrawAmount("");
       setWithdrawNotes("");
+      setAffectNetProfit(false);
       setShowPopup(false);
     } catch (error) {
       console.error("Error adding withdraw:", error);
@@ -470,6 +532,7 @@ function ProfitContent() {
     withdrawPerson,
     withdrawAmount,
     withdrawNotes,
+    affectNetProfit,
     cashTotal,
     shop,
     formatDate,
@@ -612,6 +675,14 @@ function ProfitContent() {
     });
   }, [withdraws, dateFrom, dateTo, parseDate]);
 
+  if (!authChecked) {
+    return <Loader />;
+  }
+
+  if (!canViewProfit) {
+    return null;
+  }
+
   if (loading && reports.length === 0 && withdraws.length === 0) {
     return <Loader />;
   }
@@ -664,19 +735,19 @@ function ProfitContent() {
           <div className={styles.summaryCard}>
             <span className={styles.summaryLabel}>الخزنة</span>
             <span className={styles.summaryValue}>
-              {isHidden ? "*****" : cashTotal.toFixed(2)} EGP
+              {isHidden ? "*****" : Number(cashTotal || 0).toFixed(2)} EGP
             </span>
           </div>
           <div className={styles.summaryCard}>
             <span className={styles.summaryLabel}>الربح</span>
             <span className={styles.summaryValue}>
-              {isHidden ? "*****" : profit.toFixed(2)} EGP
+              {isHidden ? "*****" : Number(profit || 0).toFixed(2)} EGP
             </span>
           </div>
           <div className={styles.summaryCard}>
             <span className={styles.summaryLabel}>صافي الربح</span>
             <span className={styles.summaryValue}>
-              {isHidden ? "*****" : netProfit.toFixed(2)} EGP
+              {isHidden ? "*****" : Number(netProfit || 0).toFixed(2)} EGP
             </span>
           </div>
         </div>
@@ -684,19 +755,13 @@ function ProfitContent() {
           <div className={styles.summaryCard}>
             <span className={styles.summaryLabel}>مصطفى</span>
             <span className={styles.summaryValue}>
-              {isHidden ? "*****" : mostafaBalance.toFixed(2)} EGP
-            </span>
-          </div>
-          <div className={styles.summaryCard}>
-            <span className={styles.summaryLabel}>ميدو</span>
-            <span className={styles.summaryValue}>
-              {isHidden ? "*****" : midoBalance.toFixed(2)} EGP
+              {isHidden ? "*****" : Number(mostafaBalance || 0).toFixed(2)} EGP
             </span>
           </div>
           <div className={styles.summaryCard}>
             <span className={styles.summaryLabel}>دبل M</span>
             <span className={styles.summaryValue}>
-              {isHidden ? "*****" : doubleMBalance.toFixed(2)} EGP
+              {isHidden ? "*****" : Number(doubleMBalance || 0).toFixed(2)} EGP
             </span>
           </div>
         </div>
@@ -743,15 +808,17 @@ function ProfitContent() {
                 </tr>
               ) : (
                 filteredWithdraws.map((w) => {
-                  const remaining = w.amount - (w.paid || 0);
+                  const totalAmount = Number(w.amount || 0);
+                  const paidAmount = Number(w.paid || 0);
+                  const remaining = totalAmount - paidAmount;
                   return (
                     <tr key={w.id}>
                       <td className={styles.nameCell}>{w.person}</td>
                       <td className={styles.amountCell}>
-                        {isHidden ? "*****" : w.amount.toFixed(2)} EGP
+                        {isHidden ? "*****" : totalAmount.toFixed(2)} EGP
                       </td>
                       <td className={styles.paidCell}>
-                        {isHidden ? "*****" : (w.paid || 0).toFixed(2)} EGP
+                        {isHidden ? "*****" : paidAmount.toFixed(2)} EGP
                       </td>
                       <td className={styles.remainingCell}>
                         {isHidden ? "*****" : remaining.toFixed(2)} EGP
@@ -763,7 +830,7 @@ function ProfitContent() {
                       </td>
                       <td className={styles.notesCell}>{w.notes || "-"}</td>
                       <td className={styles.actionsCell}>
-                        {remaining > 0 && (
+                        {remaining > 0 && w.person !== "الخزنة" && (
                           <button
                             className={styles.delBtn}
                             onClick={() => handleDeleteWithdraw(w.id)}
@@ -774,7 +841,7 @@ function ProfitContent() {
                         )}
                       </td>
                       <td className={styles.actionsCell}>
-                        {remaining > 0 && (
+                        {remaining > 0 && w.person !== "الخزنة" && (
                           <button
                             className={styles.payBtn}
                             onClick={() => handleOpenPay(w)}
@@ -819,7 +886,6 @@ function ProfitContent() {
                 >
                   <option value="">اختر الشخص</option>
                   <option value="مصطفى">مصطفى</option>
-                  <option value="ميدو">ميدو</option>
                   <option value="دبل M">دبل M</option>
                 </select>
               </div>
@@ -842,6 +908,17 @@ function ProfitContent() {
                   onChange={(e) => setWithdrawNotes(e.target.value)}
                   className={styles.modalInput}
                 />
+              </div>
+              <div className={styles.inputContainer}>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={affectNetProfit}
+                    onChange={(e) => setAffectNetProfit(e.target.checked)}
+                    style={{ width: "18px", height: "18px", cursor: "pointer" }}
+                  />
+                  <span>ينقص من صافي الربح</span>
+                </label>
               </div>
             </div>
             <div className={styles.modalActions}>

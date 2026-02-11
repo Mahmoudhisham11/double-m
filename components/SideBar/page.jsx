@@ -1,22 +1,31 @@
 'use client';
 import styles from "./styles.module.css";
 import Link from "next/link";
-import { IoHomeOutline } from "react-icons/io5";
-import { TbMoneybag } from "react-icons/tb";
-import { HiOutlineWallet } from "react-icons/hi2";
-import { GoGear } from "react-icons/go";
-import { BiLogOutCircle } from "react-icons/bi";
-import { TbReportSearch } from "react-icons/tb";
-import { TbReportMoney } from "react-icons/tb";
-import { IoPersonOutline } from "react-icons/io5";
 import { IoIosCloseCircle } from "react-icons/io";
 import { MdDarkMode, MdLightMode } from "react-icons/md";
+import {
+  FiHome,
+  FiBox,
+  FiArchive,
+  FiDownload,
+  FiCreditCard,
+  FiUsers,
+  FiFileText,
+  FiCalendar,
+  FiRotateCcw,
+  FiClock,
+  FiTrendingUp,
+  FiSettings,
+  FiLogOut,
+} from "react-icons/fi";
 import { useEffect, useState } from "react";
 import { useTheme } from "@/contexts/ThemeContext";
+import { PERMISSIONS } from "@/constants/config";
 
 function SideBar({openSideBar, setOpenSideBar}) {
     const [currentUser, setCurrentUser] = useState(null);
     const { theme, toggleTheme } = useTheme();
+    const isAdmin = currentUser ? PERMISSIONS.VIEW_PROFIT(currentUser) : false;
 
     useEffect(() => {
         if (typeof window !== "undefined") {
@@ -25,9 +34,15 @@ function SideBar({openSideBar, setOpenSideBar}) {
     }, []);
 
     const handleLogout = () => {
-        if(typeof window !== 'undefined') {
-            localStorage.clear()
-            window.location.reload()
+        if (typeof window !== "undefined") {
+            try {
+                // حذف بيانات المستخدم والمحل فقط
+                localStorage.removeItem("userName");
+                localStorage.removeItem("shop");
+            } catch (e) {
+                console.error("Error clearing auth data from localStorage", e);
+            }
+            window.location.reload();
         }
     }
     return(
@@ -46,57 +61,63 @@ function SideBar({openSideBar, setOpenSideBar}) {
             </div>
             <div className={styles.actions}>
                 <Link href={'/'} className={styles.actionLinks}>
-                    <span><IoHomeOutline/></span>
+                    <span><FiHome/></span>
                     <span>الصفحة الرئيسية</span>
                 </Link>
                 <Link href={'/products'} className={styles.actionLinks}>
-                    <span><HiOutlineWallet/></span>
+                    <span><FiBox/></span>
                     <span>المنتجات</span>
                 </Link>
+                {isAdmin && 
+                  <Link href={'/stock'} className={styles.actionLinks}>
+                    <span><FiArchive/></span>
+                    <span>المخزن</span>
+                </Link>
+                }
                 <Link href={'/wared'} className={styles.actionLinks}>
-                    <span><HiOutlineWallet/></span>
+                    <span><FiDownload/></span>
                     <span>الوارد</span>
                 </Link>
                 <Link href={'/masrofat'} className={styles.actionLinks}>
-                    <span><TbMoneybag/></span>
+                    <span><FiCreditCard/></span>
                     <span>المصاريف</span>
                 </Link>
                 <Link href={'/employees'} className={styles.actionLinks}>
-                    <span><IoPersonOutline/></span>
+                    <span><FiUsers/></span>
                     <span>الموظفين</span>
                 </Link>
                 <Link href={'/debts'} className={styles.actionLinks}>
-                    <span><TbReportMoney/></span>
+                    <span><FiFileText/></span>
                     <span>فواتير البضاعة</span>
                 </Link>
                 <Link href={'/dailyReports'} className={styles.actionLinks}>
-                    <span><TbReportMoney/></span>
+                    <span><FiCalendar/></span>
                     <span>جرد يومي</span>
                 </Link>
                 <Link href={'/reports'} className={styles.actionLinks}>
-                    <span><TbReportSearch/></span>
+                    <span><FiRotateCcw/></span>
                     <span>المرتجعات</span>
                 </Link>
                 <Link href={'/closeDay'} className={styles.actionLinks}>
-                    <span><TbReportSearch/></span>
+                    <span><FiClock/></span>
                     <span>تقفيلة اليوم</span>
                 </Link>
-                {currentUser === "mostafabeso10@gmail.com" && 
+                {isAdmin && 
                   <Link href={'/profit'} className={styles.actionLinks}>
-                    <span><TbReportSearch/></span>
+                    <span><FiTrendingUp/></span>
                     <span>الارباح</span>
                 </Link>  
                 }
             </div>
             <div className={styles.logout}>
-                {currentUser === "mostafabeso10@gmail.com" && 
+                {isAdmin && 
                   <Link href={'/settings'} className={styles.actionLinks}>
-                    <span><GoGear/></span>
+                    <span><FiSettings/></span>
                     <span>الاعدادات</span>
                 </Link>  
                 }
                 <Link href={'/'} className={styles.actionLinks} onClick={handleLogout}>
-                    <span><BiLogOutCircle/></span>
+                    <span><FiLogOut/></span>
                     <span>تسجيل الخروج</span>
                 </Link>
             </div>

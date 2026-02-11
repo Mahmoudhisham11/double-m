@@ -65,6 +65,19 @@ export default function InputModal({
             </p>
           )}
           <div style={{ margin: "20px 0" }}>
+            {type === "password" && (
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: 8,
+                  fontWeight: 500,
+                  color: "var(--text-primary)",
+                  textAlign: "center",
+                }}
+              >
+                كلمة السر
+              </label>
+            )}
             <input
               ref={inputRef}
               type={type}

@@ -41,10 +41,10 @@ export function useMasrofat(shop) {
     fetchMasrofat();
   }, [shop]);
 
-  // حساب إجمالي المصروفات بدون "فاتورة مرتجع"
+  // حساب إجمالي المصروفات بدون "فاتورة مرتجع" و "مصروف سداد"
   const totalMasrofat = masrofat.reduce((sum, item) => {
-    // استبعاد المصروفات التي سببها "فاتورة مرتجع"
-    if (item.reason === "فاتورة مرتجع") {
+    // استبعاد المصروفات التي سببها "فاتورة مرتجع" أو "مصروف سداد"
+    if (item.reason === "فاتورة مرتجع" || item.reason === "مصروف سداد") {
       return sum;
     }
     return sum + Number(item.masrof || 0);

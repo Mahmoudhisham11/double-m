@@ -167,10 +167,10 @@ function CloseDayContent() {
       return sum + (isNaN(v) ? 0 : v);
     }, 0);
 
-    // حساب المصروفات بدون "فاتورة مرتجع" (لحساب صافي الربح)
+    // حساب المصروفات بدون "فاتورة مرتجع" و "مصروف سداد" (لحساب صافي الربح)
     const totalExpensesWithoutReturn = masrofArr.reduce((sum, m) => {
-      // استبعاد المصروفات التي سببها "فاتورة مرتجع"
-      if (m.reason === "فاتورة مرتجع") {
+      // استبعاد المصروفات التي سببها "فاتورة مرتجع" أو "مصروف سداد"
+      if (m.reason === "فاتورة مرتجع" || m.reason === "مصروف سداد") {
         return sum;
       }
       const v = Number(m.masrof ?? m.amount ?? 0);
@@ -262,7 +262,7 @@ function CloseDayContent() {
     if (!Array.isArray(masrofArr) || masrofArr.length === 0) {
       return (
         <tr>
-          <td colSpan={4} className={styles.emptyCell}>
+          <td colSpan={5} className={styles.emptyCell}>
             <div className={styles.emptyState}>
               <p>❌ لا توجد مصاريف في هذه التقفيلة</p>
             </div>
@@ -278,10 +278,12 @@ function CloseDayContent() {
         : m.date ?? "-";
       const amount = m.masrof ?? m.amount ?? 0;
       const reason = m.reason ?? "-";
+      const note = m.note ?? "-";
       const shopName = m.shop ?? "-";
       return (
         <tr key={id} className={styles.tableRow}>
           <td className={styles.reasonCell}>{reason}</td>
+          <td className={styles.noteCell}>{note}</td>
           <td className={styles.shopCell}>{shopName}</td>
           <td className={styles.dateCell}>{date}</td>
           <td className={styles.amountCell}>{amount.toFixed(2)} EGP</td>
@@ -456,6 +458,7 @@ function CloseDayContent() {
               ) : (
                 <tr>
                   <th>السبب</th>
+                  <th>الملاحظة</th>
                   <th>المحل</th>
                   <th>الوقت</th>
                   <th>المبلغ</th>
