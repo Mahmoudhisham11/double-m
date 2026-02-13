@@ -32,7 +32,6 @@ function ProfitContent() {
   const [reports, setReports] = useState([]);
   const [withdraws, setWithdraws] = useState([]);
   const [dailyProfitData, setDailyProfitData] = useState([]);
-  const [masrofat, setMasrofat] = useState([]);
   const [cashTotal, setCashTotal] = useState(0);
   const [profit, setProfit] = useState(0);
   const [grossProfit, setGrossProfit] = useState(0);
@@ -220,25 +219,10 @@ function ProfitContent() {
       }
     );
 
-    const unsubscribeMasrofat = onSnapshot(
-      query(collection(db, "masrofat"), where("shop", "==", shop)),
-      (snapshot) => {
-        setMasrofat(
-          snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-        );
-        setLoading(false);
-      },
-      (error) => {
-        console.error("Error in masrofat subscription:", error);
-        showError("حدث خطأ أثناء تحديث المصروفات");
-      }
-    );
-
     return () => {
       unsubscribeReports();
       unsubscribeWithdraws();
       unsubscribeDailyProfit();
-      unsubscribeMasrofat();
     };
   }, [shop, showError]);
 
@@ -288,23 +272,6 @@ function ProfitContent() {
       return wDate && wDate >= effectiveFrom && wDate <= to;
     });
 
-    // مصروفات خاصة بالأرباح (تتأثر بالتصفير)
-    const filteredMasrofatForProfit = masrofat.filter((m) => {
-      const mDate = parseDate(m.createdAt) || parseDate(m.date);
-      return mDate && mDate >= effectiveFrom && mDate <= to;
-    });
-
-    // مصروفات خاصة بالخزنة (لا تتأثر بالتصفير)
-    const masrofatForCash = masrofat.filter((m) => {
-      const mDate = parseDate(m.date) || parseDate(m.createdAt);
-      return mDate && mDate >= from && mDate <= to;
-    });
-
-    const totalMasrofat = masrofatForCash.reduce(
-      (sum, m) => sum + Number(m.masrof || 0),
-      0
-    );
-
     // مصروفات اليوم من dailyProfit.totalMasrofat الخاصة بالخزنة
     const totalMasrofatFromDailyForCash = dailyForCash.reduce(
       (sum, d) => sum + Number(d.totalMasrofat || 0),
@@ -318,8 +285,8 @@ function ProfitContent() {
       return sum + sales;
     }, 0);
 
-    // الخزنة = إجمالي المبيعات - (مصاريف masrofat + مصاريف dailyProfit.totalMasrofat)
-    let remainingCash = totalCash - totalMasrofat - totalMasrofatFromDailyForCash;
+    // الخزنة = إجمالي المبيعات - مصاريف dailyProfit.totalMasrofat
+    let remainingCash = totalCash - totalMasrofatFromDailyForCash;
 
     // معاملات السحب/الإيداع التي تؤثر على الخزنة تعتمد فقط على فلتر التاريخ
     const withdrawsForCash = withdraws.filter((w) => {
@@ -352,15 +319,6 @@ function ProfitContent() {
       profitValue += reportProfit;
     });
 
-    // حساب المصروفات بدون "فاتورة مرتجع" و "مصروف سداد" (للأرباح فقط)
-    const totalMasrofatWithoutReturn = filteredMasrofatForProfit.reduce((sum, m) => {
-      // استبعاد المصروفات التي سببها "فاتورة مرتجع" أو "مصروف سداد"
-      if (m.reason === "فاتورة مرتجع" || m.reason === "مصروف سداد") {
-        return sum;
-      }
-      return sum + Number(m.masrof || 0);
-    }, 0);
-
     // مصروفات اليوم من dailyProfit.totalMasrofat الخاصة بصافي الربح (تتأثر بالتصفير)
     const totalMasrofatFromDailyForProfit = dailyForProfit.reduce(
       (sum, d) => sum + Number(d.totalMasrofat || 0),
@@ -380,9 +338,9 @@ function ProfitContent() {
       0
     );
 
-    // حساب صافي الربح = مجموع أرباح الفواتير - (المصروفات بدون فاتورة مرتجع + مصروفات dailyProfit من بعد resetAt + السحوبات التي تؤثر على صافي الربح)
+    // حساب صافي الربح = مجموع أرباح الفواتير - (مصروفات dailyProfit من بعد resetAt + السحوبات التي تؤثر على صافي الربح)
     const netProfitValue =
-      profitValue - totalMasrofatWithoutReturn - totalMasrofatFromDailyForProfit - totalWithdrawsAffectingNetProfit;
+      profitValue - totalMasrofatFromDailyForProfit - totalWithdrawsAffectingNetProfit;
 
     let mostafaSum = 0;
     let doubleMSum = 0;
@@ -403,23 +361,13 @@ function ProfitContent() {
       return dDate && dDate >= operationalFrom && dDate <= operationalTo;
     });
 
-    const operationalMasrofat = masrofat.filter((m) => {
-      const mDate = parseDate(m.date) || parseDate(m.createdAt);
-      return mDate && mDate >= operationalFrom && mDate <= operationalTo;
-    });
-
-    const operationalTotalMasrofat = operationalMasrofat.reduce(
-      (sum, m) => sum + Number(m.masrof || 0),
-      0
-    );
-
     const operationalTotalMasrofatDaily = operationalDailyForCash.reduce(
       (sum, d) => sum + Number(d.totalMasrofat || 0),
       0
     );
 
     const operationalTotalMasrofatCombined =
-      operationalTotalMasrofat + operationalTotalMasrofatDaily;
+      operationalTotalMasrofatDaily;
 
     const operationalTotalCash = operationalDailyForCash.reduce((sum, d) => {
       const sales = Number(d.totalSales || 0);
@@ -462,7 +410,6 @@ function ProfitContent() {
     dailyProfitData,
     reports,
     withdraws,
-    masrofat,
     shop,
     resetAt,
     parseDate,
@@ -830,7 +777,7 @@ function ProfitContent() {
                       </td>
                       <td className={styles.notesCell}>{w.notes || "-"}</td>
                       <td className={styles.actionsCell}>
-                        {remaining > 0 && w.person !== "الخزنة" && (
+                        {remaining > 0 && (
                           <button
                             className={styles.delBtn}
                             onClick={() => handleDeleteWithdraw(w.id)}
