@@ -40,6 +40,8 @@ function SettingsContent() {
     settings: false,
   });
   const [employeePercentage, setEmployeePercentage] = useState("");
+  const [commissionType, setCommissionType] = useState("percentage");
+  const [piecePrice, setPiecePrice] = useState("");
   const [currentUserName, setCurrentUserName] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -146,6 +148,8 @@ function SettingsContent() {
       settings: false,
     });
     setEmployeePercentage("");
+    setCommissionType("percentage");
+    setPiecePrice("");
   }, [activeTab]);
 
   // تحميل الصلاحيات عند اختيار مستخدم
@@ -191,11 +195,13 @@ function SettingsContent() {
     loadPermissions();
   }, [selectedUser, showError]);
 
-  // جلب نسبة الموظف
-  const fetchEmployeePercentage = useCallback(
+  // جلب بيانات عمولة الموظف
+  const fetchEmployeeCommission = useCallback(
     async (employeeId) => {
       if (!employeeId) {
         setEmployeePercentage("");
+        setCommissionType("percentage");
+        setPiecePrice("");
         return;
       }
       try {
@@ -203,13 +209,18 @@ function SettingsContent() {
         const empSnap = await getDoc(empRef);
         if (empSnap.exists()) {
           const data = empSnap.data();
+          const type = data.commissionType || "percentage";
+          setCommissionType(type);
           setEmployeePercentage(data.percentage?.toString() || "");
+          setPiecePrice(data.piecePrice?.toString() || "");
         } else {
           setEmployeePercentage("");
+          setCommissionType("percentage");
+          setPiecePrice("");
         }
       } catch (error) {
-        console.error("Error fetching employee percentage:", error);
-        showError("حدث خطأ أثناء جلب نسبة الموظف");
+        console.error("Error fetching employee commission:", error);
+        showError("حدث خطأ أثناء جلب بيانات عمولة الموظف");
       }
     },
     [showError]
@@ -217,9 +228,9 @@ function SettingsContent() {
 
   useEffect(() => {
     if (activeTab === "percentage" && selectedUser) {
-      fetchEmployeePercentage(selectedUser);
+      fetchEmployeeCommission(selectedUser);
     }
-  }, [selectedUser, activeTab, fetchEmployeePercentage]);
+  }, [selectedUser, activeTab, fetchEmployeeCommission]);
 
   const handlePermissionChange = useCallback((key) => {
     setPermissions((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -244,36 +255,55 @@ function SettingsContent() {
     }
   }, [selectedUser, permissions, success, showError]);
 
-  const handleSaveEmployeePercentage = useCallback(async () => {
+  const handleSaveEmployeeCommission = useCallback(async () => {
     if (!selectedUser) {
       showError("يرجى اختيار الموظف أولًا");
-      return;
-    }
-
-    const percentage = Number(employeePercentage);
-    if (
-      employeePercentage === "" ||
-      isNaN(percentage) ||
-      percentage < 0 ||
-      percentage > 100
-    ) {
-      showError("يرجى إدخال نسبة صحيحة بين 0 و 100");
       return;
     }
 
     setIsProcessing(true);
     try {
       const empRef = doc(db, "employees", selectedUser);
-      await updateDoc(empRef, { percentage });
-      success("✅ تم حفظ نسبة الموظف بنجاح");
-      setEmployeePercentage(percentage.toString());
+      const updateData = { commissionType };
+
+      if (commissionType === "percentage") {
+        const percentage = Number(employeePercentage);
+        if (
+          employeePercentage === "" ||
+          isNaN(percentage) ||
+          percentage < 0 ||
+          percentage > 100
+        ) {
+          showError("يرجى إدخال نسبة صحيحة بين 0 و 100");
+          setIsProcessing(false);
+          return;
+        }
+        updateData.percentage = percentage;
+        // إزالة piecePrice إذا كان موجوداً
+        updateData.piecePrice = null;
+      } else {
+        const price = Number(piecePrice);
+        if (
+          piecePrice === "" ||
+          isNaN(price) ||
+          price < 0
+        ) {
+          showError("يرجى إدخال سعر القطعة صحيح (رقم موجب)");
+          setIsProcessing(false);
+          return;
+        }
+        updateData.piecePrice = price;
+      }
+
+      await updateDoc(empRef, updateData);
+      success("✅ تم حفظ بيانات عمولة الموظف بنجاح");
     } catch (error) {
-      console.error("Error saving employee percentage:", error);
-      showError("حدث خطأ أثناء حفظ النسبة ❌");
+      console.error("Error saving employee commission:", error);
+      showError("حدث خطأ أثناء الحفظ ❌");
     } finally {
       setIsProcessing(false);
     }
-  }, [selectedUser, employeePercentage, success, showError]);
+  }, [selectedUser, commissionType, employeePercentage, piecePrice, success, showError]);
 
   const handleTabChange = useCallback((tab) => {
     setActiveTab(tab);
@@ -368,12 +398,18 @@ function SettingsContent() {
           <div className={styles.container}>
             <div className={styles.contentContainer}>
               <h3 className={styles.percentageTitle}>
-                نسبة الموظف
+                {commissionType === "percentage" ? "نسبة الموظف" : "سعر القطعة للموظف"}
                 {selectedUser && selectedEmployee && (
                   <span className={styles.percentageValue}>
-                    {employeePercentage !== ""
-                      ? `: ${employeePercentage}%`
-                      : ": لا توجد نسبة محفوظة"}
+                    {commissionType === "percentage" ? (
+                      employeePercentage !== ""
+                        ? `: ${employeePercentage}%`
+                        : ": لا توجد نسبة محفوظة"
+                    ) : (
+                      piecePrice !== ""
+                        ? `: ${piecePrice} جنيه/قطعة`
+                        : ": لا يوجد سعر محفوظ"
+                    )}
                   </span>
                 )}
               </h3>
@@ -384,7 +420,7 @@ function SettingsContent() {
                   value={selectedUser}
                   onChange={(e) => {
                     setSelectedUser(e.target.value);
-                    fetchEmployeePercentage(e.target.value);
+                    fetchEmployeeCommission(e.target.value);
                   }}
                   className={styles.selectInput}
                 >
@@ -398,27 +434,72 @@ function SettingsContent() {
               </div>
 
               {selectedUser && (
-                <div className="inputContainer">
-                  <label>
-                    <VscPercentage />
-                  </label>
-                  <input
-                    type="number"
-                    placeholder="نسبة الموظف (0-100)"
-                    value={employeePercentage}
-                    onChange={(e) => setEmployeePercentage(e.target.value)}
-                    min="0"
-                    max="100"
-                  />
-                </div>
+                <>
+                  <div className={styles.inputContainer}>
+                    <label className={styles.inputLabel}>نوع العمولة</label>
+                    <div className={styles.toggleContainer}>
+                      <button
+                        type="button"
+                        className={`${styles.toggleOption} ${
+                          commissionType === "percentage" ? styles.toggleActive : ""
+                        }`}
+                        onClick={() => setCommissionType("percentage")}
+                      >
+                        نسبة مئوية
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.toggleOption} ${
+                          commissionType === "piece" ? styles.toggleActive : ""
+                        }`}
+                        onClick={() => setCommissionType("piece")}
+                      >
+                        سعر القطعة
+                      </button>
+                    </div>
+                  </div>
+
+                  {commissionType === "percentage" ? (
+                    <div className={styles.inputContainer}>
+                      <label className={styles.inputLabel}>
+                        <VscPercentage />
+                        نسبة الموظف (%)
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="نسبة الموظف (0-100)"
+                        value={employeePercentage}
+                        onChange={(e) => setEmployeePercentage(e.target.value)}
+                        min="0"
+                        max="100"
+                        className={styles.numberInput}
+                      />
+                    </div>
+                  ) : (
+                    <div className={styles.inputContainer}>
+                      <label className={styles.inputLabel}>
+                        سعر القطعة (جنيه)
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="سعر القطعة (رقم موجب)"
+                        value={piecePrice}
+                        onChange={(e) => setPiecePrice(e.target.value)}
+                        min="0"
+                        step="0.01"
+                        className={styles.numberInput}
+                      />
+                    </div>
+                  )}
+                </>
               )}
 
               <button
                 className={styles.saveBtn}
-                onClick={handleSaveEmployeePercentage}
+                onClick={handleSaveEmployeeCommission}
                 disabled={isProcessing || !selectedUser}
               >
-                {isProcessing ? "جاري الحفظ..." : "حفظ نسبة الموظف"}
+                {isProcessing ? "جاري الحفظ..." : "حفظ"}
               </button>
             </div>
           </div>

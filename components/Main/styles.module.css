@@ -451,6 +451,47 @@
   align-items: center;
 }
 
+.tabsContainer {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 15px;
+  background: var(--surface-hover);
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+}
+
+.tabBtn {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  font-family: "Tajawal", sans-serif;
+}
+
+.tabBtn:hover {
+  color: var(--text-primary);
+  background: var(--surface);
+}
+
+.tabBtn.activeTab {
+  background: linear-gradient(
+    135deg,
+    var(--main-color),
+    var(--main-color-hover)
+  );
+  color: white;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
 .resetTitle h3 {
   font-size: 21px;
   font-weight: 700;

@@ -32,6 +32,8 @@ function EmployeeReportsContent() {
   const [employee, setEmployee] = useState(null);
   const [salary, setSalary] = useState(0);
   const [percentage, setPercentage] = useState(0);
+  const [commissionType, setCommissionType] = useState("percentage");
+  const [piecePrice, setPiecePrice] = useState(0);
   const [adjustments, setAdjustments] = useState([]);
   const [hoursRecords, setHoursRecords] = useState([]);
   const [sales, setSales] = useState([]);
@@ -66,6 +68,8 @@ function EmployeeReportsContent() {
         setEmployee(empData);
         setSalary(parseFloat(empData.salary) || 0);
         setPercentage(parseFloat(empData.percentage) || 0);
+        setCommissionType(empData.commissionType || "percentage");
+        setPiecePrice(parseFloat(empData.piecePrice) || 0);
       }
     });
     return () => unsubscribe();
@@ -153,10 +157,25 @@ function EmployeeReportsContent() {
     return sales.reduce((sum, s) => sum + (parseFloat(s.total) || 0), 0);
   }, [sales]);
 
+  // حساب إجمالي القطع المباعة
+  const totalPieces = useMemo(() => {
+    return sales.reduce((total, sale) => {
+      if (!sale.cart || !Array.isArray(sale.cart)) return total;
+      const salePieces = sale.cart.reduce((sum, item) => {
+        return sum + (parseFloat(item.quantity) || 0);
+      }, 0);
+      return total + salePieces;
+    }, 0);
+  }, [sales]);
+
   // حساب العمولة
   const commission = useMemo(() => {
-    return totalSales * (percentage / 100);
-  }, [totalSales, percentage]);
+    if (commissionType === "piece") {
+      return totalPieces * piecePrice;
+    } else {
+      return totalSales * (percentage / 100);
+    }
+  }, [totalSales, totalPieces, percentage, piecePrice, commissionType]);
 
   // حساب الراتب النهائي
   const finalSalary = useMemo(() => {
@@ -213,7 +232,14 @@ function EmployeeReportsContent() {
 
       const saleTotal = parseFloat(sale.total) || 0;
       daily[saleDate].sales += saleTotal;
-      daily[saleDate].commission = daily[saleDate].sales * (percentage / 100);
+      
+      // حساب القطع في هذه العملية (للاستخدام في حساب العمولة حسب القطع)
+      if (commissionType === "piece") {
+        const salePieces = (sale.cart || []).reduce((sum, item) => {
+          return sum + (parseFloat(item.quantity) || 0);
+        }, 0);
+        daily[saleDate].commission += salePieces * piecePrice;
+      }
     });
 
     // إضافة الساعات
@@ -265,6 +291,11 @@ function EmployeeReportsContent() {
 
     // حساب الإجمالي لكل يوم
     Object.keys(daily).forEach((date) => {
+      // حساب العمولة حسب النوع (إذا كان percentage)
+      if (commissionType === "percentage" && daily[date].sales > 0) {
+        daily[date].commission = daily[date].sales * (percentage / 100);
+      }
+      
       daily[date].total =
         salary +
         daily[date].hoursSalary +
@@ -276,7 +307,7 @@ function EmployeeReportsContent() {
     return Object.values(daily).sort((a, b) =>
       b.date.localeCompare(a.date)
     );
-  }, [sales, hoursRecords, adjustments, salary, percentage, hourlyRate]);
+  }, [sales, hoursRecords, adjustments, salary, percentage, piecePrice, commissionType, hourlyRate]);
 
   // حفظ سجل ساعات
   const handleSaveHourRecord = useCallback(async () => {
@@ -469,8 +500,18 @@ function EmployeeReportsContent() {
             <p>{totalSales.toFixed(2)} جنيه</p>
           </div>
           <div className={styles.card}>
-            <h3>العمولة ({percentage}%)</h3>
+            <h3>
+              العمولة{" "}
+              {commissionType === "percentage"
+                ? `(${percentage}%)`
+                : `(${piecePrice.toFixed(2)} جنيه/قطعة)`}
+            </h3>
             <p>{commission.toFixed(2)} جنيه</p>
+            {commissionType === "piece" && (
+              <p style={{ fontSize: "14px", marginTop: "8px", opacity: 0.9 }}>
+                إجمالي القطع: {totalPieces} قطعة
+              </p>
+            )}
           </div>
           <div className={styles.card}>
             <h3>الراتب النهائي</h3>

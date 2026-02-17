@@ -20,7 +20,9 @@ export const stockService = {
     for (const item of cartItems) {
       if (!item.originalProductId) continue;
 
-      const prodRef = doc(db, "lacosteProducts", item.originalProductId);
+      const isOffer = item.isOffer || false;
+      const collectionName = isOffer ? "offers" : "lacosteProducts";
+      const prodRef = doc(db, collectionName, item.originalProductId);
       const prodSnap = await getDoc(prodRef);
       if (!prodSnap.exists()) continue;
 

@@ -12,6 +12,7 @@ import { db } from "@/app/firebase";
 import { NotificationProvider, useNotification } from "@/contexts/NotificationContext";
 import { useCart } from "@/hooks/useCart";
 import { useProducts } from "@/hooks/useProducts";
+import { useOffers } from "@/hooks/useOffers";
 import { useInvoices } from "@/hooks/useInvoices";
 import { useEmployees } from "@/hooks/useEmployees";
 import { useMasrofat } from "@/hooks/useMasrofat";
@@ -69,11 +70,15 @@ function MainContent() {
   // Hooks
   const { cart, subtotal, profit, addToCart, updateQuantity, removeFromCart, clearCart } = useCart(shop);
   const { products } = useProducts(shop);
+  const { offers } = useOffers(shop);
   const { invoices, filterInvoices, formatDate } = useInvoices(shop);
   const { employees } = useEmployees(shop);
   const { totalMasrofat, totalMasrofatWithReturn } = useMasrofat(shop);
   const { returnProduct, returningItemsState } = useInvoiceReturn();
   const { isOnline } = useOfflineSync();
+  
+  // Product source state
+  const [productSource, setProductSource] = useState("products");
 
   // Filtered data - using useMemo for performance
   const filteredInvoices = useMemo(
@@ -133,6 +138,11 @@ function MainContent() {
     checkSubscription();
   }, [userName, showError]);
 
+  // Get current product list based on source
+  const currentProducts = useMemo(() => {
+    return productSource === "offers" ? offers : products;
+  }, [productSource, products, offers]);
+
   // Product search
   useEffect(() => {
     if (!searchCode || !shop) return;
@@ -141,7 +151,7 @@ function MainContent() {
       const trimmedCode = searchCode.trim();
       if (!trimmedCode) return;
 
-      const foundProduct = products.find(
+      const foundProduct = currentProducts.find(
         (p) => p.code?.toString() === trimmedCode
       );
       
@@ -179,7 +189,7 @@ function MainContent() {
     }, 800); // زيادة وقت الـ debounce إلى 800ms لإعطاء المستخدم وقت لكتابة الرقم كاملاً
 
     return () => clearTimeout(timer);
-  }, [searchCode, products, cart, shop]);
+  }, [searchCode, currentProducts, cart, shop]);
 
   // Toggle hidden state
   const toggleHidden = useCallback(() => {
@@ -222,10 +232,12 @@ function MainContent() {
       // Check available quantity for all products (with or without variants)
       // Note: We only check availability, we don't reserve stock until invoice is saved
       let productWithFullData = product;
+      const isOffer = product.isOffer || productSource === "offers";
+      const collectionName = isOffer ? "offers" : "lacosteProducts";
       
       if (product.id) {
         // Get current product data from Firestore to check availability and get full data
-        const prodRef = doc(db, "lacosteProducts", product.id);
+        const prodRef = doc(db, collectionName, product.id);
         const prodSnap = await getDoc(prodRef);
         
         if (prodSnap.exists()) {
@@ -236,6 +248,7 @@ function MainContent() {
             ...product,
             ...prodData,
             id: product.id, // الحفاظ على الـ id الأصلي
+            isOffer: isOffer, // إضافة علامة العروض
           };
           
           const available = getAvailableQuantity(
@@ -687,6 +700,9 @@ function MainContent() {
         onClose={() => setOpenSalles(false)}
         cart={cart}
         products={products}
+        offers={offers}
+        productSource={productSource}
+        onProductSourceChange={setProductSource}
         searchCode={searchCode}
         onSearchChange={setSearchCode}
         onDeleteInvoice={() => setShowDeleteInvoiceConfirm(true)}

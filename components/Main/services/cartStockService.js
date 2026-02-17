@@ -17,9 +17,10 @@ export const cartStockService = {
   /**
    * Reserve stock when adding to cart
    */
-  async reserveStock(productId, color, size, quantity) {
+  async reserveStock(productId, color, size, quantity, isOffer = false) {
     try {
-      const prodRef = doc(db, "lacosteProducts", productId);
+      const collectionName = isOffer ? "offers" : "lacosteProducts";
+      const prodRef = doc(db, collectionName, productId);
       const prodSnap = await getDoc(prodRef);
       
       if (!prodSnap.exists()) {
@@ -133,13 +134,15 @@ export const cartStockService = {
     try {
       if (!cartItem.originalProductId) return { success: true };
 
+      const isOffer = cartItem.isOffer || false;
+      const collectionName = isOffer ? "offers" : "lacosteProducts";
       let prodRef = null;
 
       if (cartItem.originalProductId) {
-        prodRef = doc(db, "lacosteProducts", cartItem.originalProductId);
+        prodRef = doc(db, collectionName, cartItem.originalProductId);
       } else {
         const q = query(
-          collection(db, "lacosteProducts"),
+          collection(db, collectionName),
           where("code", "==", cartItem.code),
           where("shop", "==", shop)
         );
@@ -171,7 +174,7 @@ export const cartStockService = {
           newProd.sizes = [{ size: cartItem.size, qty: cartItem.quantity }];
         }
 
-        await addDoc(collection(db, "lacosteProducts"), newProd);
+        await addDoc(collection(db, collectionName), newProd);
         return { success: true };
       }
 
@@ -187,7 +190,11 @@ export const cartStockService = {
           shop: shop,
           type: cartItem.type || "product",
         };
-        await addDoc(collection(db, "lacosteProducts"), newProd);
+        if (isOffer) {
+          newProd.isOffer = true;
+          newProd.finalPrice = cartItem.finalPrice || 0;
+        }
+        await addDoc(collection(db, collectionName), newProd);
         return { success: true };
       }
 

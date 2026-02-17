@@ -10,6 +10,9 @@ export default function CartSidebar({
   onClose,
   cart,
   products,
+  offers,
+  productSource,
+  onProductSourceChange,
   searchCode,
   onSearchChange,
   onDeleteInvoice,
@@ -24,6 +27,7 @@ export default function CartSidebar({
   onOpenClientModal,
   isSaving = false,
 }) {
+  const currentProducts = productSource === "offers" ? offers : products;
   return (
     <div className={`${styles.resetContainer} ${isOpen ? styles.active : ''}`}>
       <div className={styles.reset}>
@@ -32,6 +36,21 @@ export default function CartSidebar({
             <h3>محتوى الفاتورة</h3>
             <button className={styles.sallesBtn} onClick={onClose}>
               <IoIosCloseCircle />
+            </button>
+          </div>
+          
+          <div className={styles.tabsContainer}>
+            <button
+              className={`${styles.tabBtn} ${productSource === "products" ? styles.activeTab : ""}`}
+              onClick={() => onProductSourceChange("products")}
+            >
+              المنتجات
+            </button>
+            <button
+              className={`${styles.tabBtn} ${productSource === "offers" ? styles.activeTab : ""}`}
+              onClick={() => onProductSourceChange("offers")}
+            >
+              العروض
             </button>
           </div>
           
@@ -48,7 +67,7 @@ export default function CartSidebar({
                 onChange={(e) => onSearchChange(e.target.value)}
               />
               <datalist id="codeList">
-                {products.map((p) => (
+                {currentProducts.map((p) => (
                   <option key={p.id} value={p.code} />
                 ))}
               </datalist>

@@ -68,6 +68,10 @@ function SideBar({openSideBar, setOpenSideBar}) {
                     <span><FiBox/></span>
                     <span>المنتجات</span>
                 </Link>
+                <Link href={'/offers'} className={styles.actionLinks}>
+                    <span><FiBox/></span>
+                    <span>العروض</span>
+                </Link>
                 {isAdmin && 
                   <Link href={'/stock'} className={styles.actionLinks}>
                     <span><FiArchive/></span>
