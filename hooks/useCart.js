@@ -62,7 +62,9 @@ export function useCart(shop) {
 
       // Only check availability when increasing quantity (delta > 0)
       if (delta > 0 && cartItem.originalProductId) {
-        const prodRef = doc(db, "lacosteProducts", cartItem.originalProductId);
+        const isOffer = cartItem.isOffer || false;
+        const collectionName = isOffer ? "offers" : "lacosteProducts";
+        const prodRef = doc(db, collectionName, cartItem.originalProductId);
         const prodSnap = await getDoc(prodRef);
         
         if (!prodSnap.exists()) {

@@ -160,8 +160,9 @@ function ProductsContent() {
       q,
       (snapshot) => {
         const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
           ...doc.data(),
+          // تأكد أن id دايمًا هو doc.id حتى لو في حقل id داخل البيانات
+          id: doc.id,
         }));
 
         setProducts(data);
@@ -468,14 +469,54 @@ function ProductsContent() {
           deletedAt: new Date(),
         };
 
+        // التحقق من وجود المنتج قبل الحذف
+        let productRef = doc(db, "lacosteProducts", product.id);
+        let productSnap = await getDoc(productRef);
+        
+        // لو المنتج مش موجود بالـ id، جرّب البحث بالكود
+        if (!productSnap.exists() && product.code) {
+          const q = query(
+            collection(db, "lacosteProducts"),
+            where("code", "==", product.code.toString()),
+            where("shop", "==", shop)
+          );
+          const querySnapshot = await getDocs(q);
+          
+          if (!querySnapshot.empty) {
+            const docSnap = querySnapshot.docs[0];
+            productRef = docSnap.ref;
+            productSnap = docSnap;
+            // تحديث product.id بالـ id الجديد
+            product.id = docSnap.id;
+          }
+        }
+        
+        if (!productSnap.exists()) {
+          // المنتج غير موجود - قد يكون تم حذفه بالفعل
+          setProducts((prev) => prev.filter((p) => p.id !== product.id));
+          showError("المنتج غير موجود في قاعدة البيانات");
+          setShowDeleteConfirm(false);
+          setProductToDelete(null);
+          return;
+        }
+
         // 1. تخزين المنتج في deletedProducts (مع دعم offline)
         const addResult = await offlineAdd("deletedProducts", deletedProductData);
         
         // 2. حذف المنتج من lacosteProducts (مع دعم offline)
         const deleteResult = await offlineDelete("lacosteProducts", product.id);
 
-        // ✅ تحديث الـ state محلياً فوراً (لتحسين UX)
-        setProducts((prev) => prev.filter((p) => p.id !== product.id));
+        // التحقق من نجاح العملية
+        if (!deleteResult.success && !deleteResult.offline) {
+          console.error("Delete failed:", deleteResult.error);
+          showError(`فشل حذف المنتج: ${deleteResult.error?.message || "خطأ غير معروف"}`);
+          return;
+        }
+
+        // ✅ تحديث الـ state محلياً فوراً (لتحسين UX) - فقط إذا نجحت العملية
+        if (deleteResult.success || deleteResult.offline) {
+          setProducts((prev) => prev.filter((p) => p.id !== product.id));
+        }
 
         if (deleteResult.offline || addResult.offline) {
           success("تم حذف المنتج (سيتم المزامنة عند الاتصال بالإنترنت)");
@@ -1136,7 +1177,18 @@ function ProductsContent() {
       if (updatedColors.length === 0) {
         // حذف المنتج بالكامل
         const deleteResult = await offlineDelete("lacosteProducts", deleteTarget.id);
-        setProducts((prev) => prev.filter((p) => p.id !== deleteTarget.id));
+        
+        // التحقق من نجاح العملية
+        if (!deleteResult.success && !deleteResult.offline) {
+          console.error("Delete failed:", deleteResult.error);
+          showError(`فشل حذف المنتج: ${deleteResult.error?.message || "خطأ غير معروف"}`);
+          return;
+        }
+        
+        // ✅ تحديث الـ state محلياً فوراً - فقط إذا نجحت العملية
+        if (deleteResult.success || deleteResult.offline) {
+          setProducts((prev) => prev.filter((p) => p.id !== deleteTarget.id));
+        }
       } else {
         // إعادة حساب الكمية الإجمالية
         const newQuantity = updatedColors.reduce(
@@ -1145,19 +1197,28 @@ function ProductsContent() {
         );
 
         // تحديث المنتج (مع دعم offline)
-        await offlineUpdate("lacosteProducts", deleteTarget.id, {
+        const updateResult = await offlineUpdate("lacosteProducts", deleteTarget.id, {
           colors: updatedColors,
           quantity: newQuantity,
         });
 
-        // تحديث الـ state محلياً
-        setProducts((prev) =>
-          prev.map((p) =>
-            p.id === deleteTarget.id
-              ? { ...p, colors: updatedColors, quantity: newQuantity }
-              : p
-          )
-        );
+        // التحقق من نجاح العملية
+        if (!updateResult.success && !updateResult.offline) {
+          console.error("Update failed:", updateResult.error);
+          showError(`فشل تحديث المنتج: ${updateResult.error?.message || "خطأ غير معروف"}`);
+          return;
+        }
+
+        // تحديث الـ state محلياً - فقط إذا نجحت العملية
+        if (updateResult.success || updateResult.offline) {
+          setProducts((prev) =>
+            prev.map((p) =>
+              p.id === deleteTarget.id
+                ? { ...p, colors: updatedColors, quantity: newQuantity }
+                : p
+            )
+          );
+        }
       }
 
       // تنظيف الواجهة
@@ -1227,8 +1288,11 @@ function ProductsContent() {
                     className={styles.searchInput}
                   />
                   <datalist id="codesList">
-                    {products.map((p) => (
-                      <option key={p.id} value={p.code} />
+                    {products.map((p, index) => (
+                      <option
+                        key={`${p.id || p.code || "no-id"}-${index}`}
+                        value={p.code}
+                      />
                     ))}
                   </datalist>
                 </div>
@@ -1311,7 +1375,7 @@ function ProductsContent() {
                 <tbody>
                   {[...filteredProducts]
                     .sort((a, b) => Number(a.code) - Number(b.code)) // ⭐ ترتيب المنتجات حسب الكود
-                    .map((product) => {
+                    .map((product, index) => {
                       const colorsList = product.colors || [];
                       let totalQ = 0;
 
@@ -1328,7 +1392,7 @@ function ProductsContent() {
                       });
 
                       return (
-                        <tr key={product.id}>
+                        <tr key={`${product.id || product.code || "row"}-${index}`}>
                           <td className={styles.codeCell}>{product.code}</td>
                           <td className={styles.nameCell}>
                             {product.name || "-"}

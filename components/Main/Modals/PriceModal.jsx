@@ -63,7 +63,9 @@ export default function PriceModal({
     // Check available quantity for simple products
     if (product.id) {
       try {
-        const prodRef = doc(db, "lacosteProducts", product.id);
+        const isOffer = product.isOffer || false;
+        const collectionName = isOffer ? "offers" : "lacosteProducts";
+        const prodRef = doc(db, collectionName, product.id);
         const prodSnap = await getDoc(prodRef);
         
         if (prodSnap.exists()) {

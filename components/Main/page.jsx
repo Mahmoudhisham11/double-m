@@ -151,9 +151,33 @@ function MainContent() {
       const trimmedCode = searchCode.trim();
       if (!trimmedCode) return;
 
-      const foundProduct = currentProducts.find(
+      // Search in current products first
+      let foundProduct = currentProducts.find(
         (p) => p.code?.toString() === trimmedCode
       );
+      let foundInOffers = productSource === "offers";
+      
+      // If not found in current products, try the other collection
+      if (!foundProduct) {
+        const alternateProducts = productSource === "offers" ? products : offers;
+        foundProduct = alternateProducts.find(
+          (p) => p.code?.toString() === trimmedCode
+        );
+        
+        // If found in alternate collection, update productSource and isOffer flag
+        if (foundProduct) {
+          foundInOffers = productSource === "products"; // If we were in products and found in offers
+          setProductSource(productSource === "offers" ? "products" : "offers");
+        }
+      }
+      
+      // Ensure isOffer flag is set correctly
+      if (foundProduct) {
+        foundProduct = {
+          ...foundProduct,
+          isOffer: foundInOffers,
+        };
+      }
       
       if (!foundProduct) {
         // لا نمسح الحقل إذا لم نجد منتج - نترك المستخدم يرى ما كتبه
@@ -232,57 +256,133 @@ function MainContent() {
       // Check available quantity for all products (with or without variants)
       // Note: We only check availability, we don't reserve stock until invoice is saved
       let productWithFullData = product;
-      const isOffer = product.isOffer || productSource === "offers";
-      const collectionName = isOffer ? "offers" : "lacosteProducts";
+      // Determine if product is from offers - check product.isOffer first, then productSource
+      let isOffer = product.isOffer !== undefined ? product.isOffer : (productSource === "offers");
+      let collectionName = isOffer ? "offers" : "lacosteProducts";
+      let prodRef = null;
+      let prodSnap = null;
       
+      // Try to find product by id first, then by code if id is not available
       if (product.id) {
         // Get current product data from Firestore to check availability and get full data
-        const prodRef = doc(db, collectionName, product.id);
-        const prodSnap = await getDoc(prodRef);
+        prodRef = doc(db, collectionName, product.id);
+        prodSnap = await getDoc(prodRef);
         
-        if (prodSnap.exists()) {
-          const prodData = prodSnap.data();
+        // If product not found in the expected collection, try the other one
+        if (!prodSnap.exists()) {
+          const alternateCollection = isOffer ? "lacosteProducts" : "offers";
+          const alternateRef = doc(db, alternateCollection, product.id);
+          const alternateSnap = await getDoc(alternateRef);
           
-          // استخدام البيانات الكاملة من Firebase لضمان وجود جميع الحقول
-          productWithFullData = {
-            ...product,
-            ...prodData,
-            id: product.id, // الحفاظ على الـ id الأصلي
-            isOffer: isOffer, // إضافة علامة العروض
-          };
-          
-          const available = getAvailableQuantity(
-            prodData,
-            options.color || null,
-            options.size || null
-          );
-
-          // Calculate quantity already in cart for the same product variant
-          const existingInCart = cart
-            .filter(item => 
-              item.originalProductId === product.id &&
-              (item.color || "") === (options.color || "") &&
-              (item.size || "") === (options.size || "")
-            )
-            .reduce((sum, item) => sum + (item.quantity || 0), 0);
-
-          // Check if requested quantity (including existing in cart) exceeds available
-          const totalRequested = existingInCart + qty;
-          if (totalRequested > available) {
-            const canAdd = available - existingInCart;
-            showError(
-              `⚠️ الكمية المطلوبة (${totalRequested}) أكبر من المتاح (${available})\n` +
-              `الكمية في السلة: ${existingInCart}\n` +
-              `الكمية المتاحة: ${available}\n` +
-              `يمكن إضافة: ${canAdd > 0 ? canAdd : 0}`
-            );
-            return;
+          if (alternateSnap.exists()) {
+            // Product found in alternate collection
+            prodRef = alternateRef;
+            prodSnap = alternateSnap;
+            collectionName = alternateCollection;
+            isOffer = alternateCollection === "offers";
           }
-        } else {
-          // Product doesn't exist in stock
-          showError("المنتج غير موجود في المخزون");
+        }
+      }
+      
+      // If product not found by id, try searching by code
+      if (!prodSnap || !prodSnap.exists()) {
+        if (product.code) {
+          // Search by code in the expected collection
+          const q = query(
+            collection(db, collectionName),
+            where("code", "==", product.code.toString()),
+            where("shop", "==", shop)
+          );
+          const querySnapshot = await getDocs(q);
+          
+          if (!querySnapshot.empty) {
+            const docSnap = querySnapshot.docs[0];
+            prodRef = docSnap.ref;
+            prodSnap = docSnap;
+          } else {
+            // Try the alternate collection
+            const alternateCollection = isOffer ? "lacosteProducts" : "offers";
+            const alternateQuery = query(
+              collection(db, alternateCollection),
+              where("code", "==", product.code.toString()),
+              where("shop", "==", shop)
+            );
+            const alternateSnapshot = await getDocs(alternateQuery);
+            
+            if (!alternateSnapshot.empty) {
+              const docSnap = alternateSnapshot.docs[0];
+              prodRef = docSnap.ref;
+              prodSnap = docSnap;
+              collectionName = alternateCollection;
+              isOffer = alternateCollection === "offers";
+            }
+          }
+        }
+      }
+
+      // كـ fallback إضافي: لو لسه مش لاقيين المنتج، جرّب البحث بالكود فقط بدون شرط المتجر
+      if ((!prodSnap || !prodSnap.exists()) && product.code) {
+        const collectionsToTry = ["offers", "lacosteProducts"];
+        for (const coll of collectionsToTry) {
+          const q2 = query(
+            collection(db, coll),
+            where("code", "==", product.code.toString())
+          );
+          const snap2 = await getDocs(q2);
+          if (!snap2.empty) {
+            const docSnap = snap2.docs[0];
+            prodRef = docSnap.ref;
+            prodSnap = docSnap;
+            collectionName = coll;
+            isOffer = coll === "offers";
+            break;
+          }
+        }
+      }
+      
+      if (prodSnap && prodSnap.exists()) {
+        const prodData = prodSnap.data();
+        const productId = prodSnap.id; // Use the id from Firestore
+        
+        // استخدام البيانات الكاملة من Firebase لضمان وجود جميع الحقول
+        productWithFullData = {
+          ...product,
+          ...prodData,
+          id: productId, // استخدام الـ id من Firestore
+          isOffer: isOffer, // إضافة علامة العروض
+        };
+        
+        const available = getAvailableQuantity(
+          prodData,
+          options.color || null,
+          options.size || null
+        );
+
+        // Calculate quantity already in cart for the same product variant
+        const existingInCart = cart
+          .filter(item => 
+            item.originalProductId === productId &&
+            (item.color || "") === (options.color || "") &&
+            (item.size || "") === (options.size || "")
+          )
+          .reduce((sum, item) => sum + (item.quantity || 0), 0);
+
+        // Check if requested quantity (including existing in cart) exceeds available
+        const totalRequested = existingInCart + qty;
+        if (totalRequested > available) {
+          const canAdd = available - existingInCart;
+          showError(
+            `⚠️ الكمية المطلوبة (${totalRequested}) أكبر من المتاح (${available})\n` +
+            `الكمية في السلة: ${existingInCart}\n` +
+            `الكمية المتاحة: ${available}\n` +
+            `يمكن إضافة: ${canAdd > 0 ? canAdd : 0}`
+          );
           return;
         }
+      } else {
+        // Product doesn't exist in either collection
+        showError("المنتج غير موجود في المخزون");
+        return;
       }
 
       // Add to cart with full product data
@@ -297,7 +397,7 @@ function MainContent() {
       const errorMessage = err.message || err.toString() || "خطأ غير معروف";
       showError(`❌ حدث خطأ أثناء إضافة المنتج: ${errorMessage}`);
     }
-  }, [addToCart, success, showError, shop, cart]);
+  }, [addToCart, success, showError, shop, cart, productSource]);
 
   // Handle quantity change
   const handleQtyChange = useCallback(async (item, delta) => {
@@ -342,8 +442,43 @@ function MainContent() {
           }
 
           try {
-            const prodRef = doc(db, "lacosteProducts", item.originalProductId);
-            const prodSnap = await getDoc(prodRef);
+            // تحديد الـ collection المناسب بناءً على isOffer
+            const isOffer = item.isOffer || false;
+            let collectionName = isOffer ? "offers" : "lacosteProducts";
+            let prodRef = doc(db, collectionName, item.originalProductId);
+            let prodSnap = await getDoc(prodRef);
+            
+            // لو المنتج مش موجود بالـ id، جرّب البحث بالكود
+            if (!prodSnap.exists() && item.code) {
+              // البحث بالكود في نفس الـ collection
+              const q = query(
+                collection(db, collectionName),
+                where("code", "==", item.code.toString()),
+                where("shop", "==", shop)
+              );
+              const querySnapshot = await getDocs(q);
+              
+              if (!querySnapshot.empty) {
+                const docSnap = querySnapshot.docs[0];
+                prodRef = docSnap.ref;
+                prodSnap = docSnap;
+              } else {
+                // جرّب الـ collection التاني
+                const alternateCollection = isOffer ? "lacosteProducts" : "offers";
+                const alternateQuery = query(
+                  collection(db, alternateCollection),
+                  where("code", "==", item.code.toString()),
+                  where("shop", "==", shop)
+                );
+                const alternateSnapshot = await getDocs(alternateQuery);
+                if (!alternateSnapshot.empty) {
+                  const docSnap = alternateSnapshot.docs[0];
+                  prodRef = docSnap.ref;
+                  prodSnap = docSnap;
+                  collectionName = alternateCollection;
+                }
+              }
+            }
             
             if (!prodSnap.exists()) {
               return {
@@ -616,6 +751,20 @@ function MainContent() {
         }, 0);
       }, 0),
       totalSales: todayInvoices.reduce((sum, invoice) => sum + (invoice.total || 0), 0),
+      totalProfit: todayInvoices.reduce((sum, invoice) => {
+        // استخدام profit الموجود في الفاتورة أو حسابه من الـ cart
+        if (typeof invoice.profit === "number") {
+          return sum + invoice.profit;
+        }
+        // حساب الربح من الـ cart items
+        const calculatedProfit = (invoice.cart || []).reduce(
+          (profit, item) =>
+            profit +
+            ((item.sellPrice || 0) - (item.buyPrice || 0)) * (item.quantity || 0),
+          0
+        );
+        return sum + calculatedProfit;
+      }, 0),
     };
 
     setSelectedEmployeeStats({
@@ -815,7 +964,7 @@ function MainContent() {
           setSelectedEmployeeStats(null);
         }}
         employeeName={selectedEmployeeStats?.name || ""}
-        stats={selectedEmployeeStats?.stats || { invoiceCount: 0, totalItems: 0, totalSales: 0 }}
+        stats={selectedEmployeeStats?.stats || { invoiceCount: 0, totalItems: 0, totalSales: 0, totalProfit: 0 }}
       />
     </div>
   );

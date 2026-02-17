@@ -434,6 +434,7 @@
   gap: 20px;
   box-shadow: var(--shadow-md);
   transition: all 0.3s ease;
+  overflow: scroll;
 }
 
 /* Cart Header */
@@ -613,11 +614,14 @@
 /* Cart Items List */
 .orderBox {
   width: 100%;
-  height: calc(100vh - 420px);
+  /* خلي مساحة المنتجات مرنة تاخد المتبقي من ارتفاع الكارت */
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 10px 0;
+  /* Scroll داخلي للمنتجات */
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--main-color) #f1f1f1;

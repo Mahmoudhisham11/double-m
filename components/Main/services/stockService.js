@@ -18,13 +18,57 @@ export const stockService = {
     if (!Array.isArray(cartItems) || cartItems.length === 0) return;
 
     for (const item of cartItems) {
-      if (!item.originalProductId) continue;
+      if (!item.originalProductId && !item.code) continue;
 
       const isOffer = item.isOffer || false;
-      const collectionName = isOffer ? "offers" : "lacosteProducts";
-      const prodRef = doc(db, collectionName, item.originalProductId);
-      const prodSnap = await getDoc(prodRef);
-      if (!prodSnap.exists()) continue;
+      let collectionName = isOffer ? "offers" : "lacosteProducts";
+      let prodRef = null;
+      let prodSnap = null;
+
+      // محاولة البحث بالـ id أولاً
+      if (item.originalProductId) {
+        prodRef = doc(db, collectionName, item.originalProductId);
+        prodSnap = await getDoc(prodRef);
+      }
+
+      // لو المنتج مش موجود بالـ id، جرّب البحث بالكود
+      if ((!prodSnap || !prodSnap.exists()) && item.code) {
+        const shop = item.shop || (typeof window !== "undefined" ? localStorage.getItem("shop") : null);
+        
+        // البحث بالكود في نفس الـ collection
+        const q = query(
+          collection(db, collectionName),
+          where("code", "==", item.code.toString()),
+          ...(shop ? [where("shop", "==", shop)] : [])
+        );
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+          const docSnap = querySnapshot.docs[0];
+          prodRef = docSnap.ref;
+          prodSnap = docSnap;
+        } else {
+          // جرّب الـ collection التاني
+          const alternateCollection = isOffer ? "lacosteProducts" : "offers";
+          const alternateQuery = query(
+            collection(db, alternateCollection),
+            where("code", "==", item.code.toString()),
+            ...(shop ? [where("shop", "==", shop)] : [])
+          );
+          const alternateSnapshot = await getDocs(alternateQuery);
+          if (!alternateSnapshot.empty) {
+            const docSnap = alternateSnapshot.docs[0];
+            prodRef = docSnap.ref;
+            prodSnap = docSnap;
+            collectionName = alternateCollection;
+          }
+        }
+      }
+
+      if (!prodSnap || !prodSnap.exists()) {
+        console.warn(`Product not found: ${item.name} (code: ${item.code}, id: ${item.originalProductId})`);
+        continue;
+      }
 
       const prodData = prodSnap.data();
       
@@ -132,13 +176,17 @@ export const stockService = {
         throw new Error("Shop is required for restoring stock");
       }
 
+      // تحديد collection المناسب بناءً على isOffer
+      const isOffer = item.isOffer || false;
+      const collectionName = isOffer ? "offers" : "lacosteProducts";
+
       let prodRef = null;
 
       if (item.originalProductId) {
-        prodRef = doc(db, "lacosteProducts", item.originalProductId);
+        prodRef = doc(db, collectionName, item.originalProductId);
       } else {
         const q = query(
-          collection(db, "lacosteProducts"),
+          collection(db, collectionName),
           where("code", "==", item.code),
           where("shop", "==", shop)
         );
@@ -161,6 +209,17 @@ export const stockService = {
           type: item.type || "product",
         };
 
+        // إضافة حقول العروض إذا كان من العروض
+        if (isOffer) {
+          newProd.isOffer = true;
+          // استخدام الأسعار الحالية كأسعار العرض
+          newProd.sellPrice = item.sellPrice || 0;
+          newProd.finalPrice = item.finalPrice || item.sellPrice || 0;
+          // حفظ الأسعار الأصلية إذا كانت موجودة، وإلا استخدام الأسعار الحالية
+          newProd.originalSellPrice = item.originalSellPrice || item.sellPrice || 0;
+          newProd.originalFinalPrice = item.originalFinalPrice || item.finalPrice || item.sellPrice || 0;
+        }
+
         if (item.color) {
           newProd.colors = [
             {
@@ -181,7 +240,7 @@ export const stockService = {
           newProd.sizes = [{ size: item.size, qty: item.quantity || 0 }];
         }
 
-        await addDoc(collection(db, "lacosteProducts"), newProd);
+        await addDoc(collection(db, collectionName), newProd);
       };
 
       if (!prodRef) {

@@ -24,6 +24,8 @@ import {
 import ConfirmModal from "@/components/Main/Modals/ConfirmModal";
 import { FaPlus, FaTrash, FaUndo } from "react-icons/fa";
 import { CiSearch } from "react-icons/ci";
+import { MdDriveFileRenameOutline } from "react-icons/md";
+import { GiMoneyStack } from "react-icons/gi";
 
 function OffersContent() {
   const { success, error: showError } = useNotification();
@@ -32,7 +34,13 @@ function OffersContent() {
   const [loading, setLoading] = useState(true);
   const [offers, setOffers] = useState([]);
   const [products, setProducts] = useState([]);
+  const [filteredOffers, setFilteredOffers] = useState([]);
   const [searchCode, setSearchCode] = useState("");
+  const [filterSection, setFilterSection] = useState("الكل");
+  const [totalBuy, setTotalBuy] = useState(0);
+  const [totalSell, setTotalSell] = useState(0);
+  const [finaltotal, setFinalTotal] = useState(0);
+  const [totalProducts, setTotalProducts] = useState(0);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -96,8 +104,9 @@ function OffersContent() {
       q,
       (snapshot) => {
         const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
           ...doc.data(),
+          // id الحقيقي من Firestore بغض النظر عن أي id محفوظ جوه الداتا
+          id: doc.id,
         }));
         setOffers(data);
       },
@@ -124,8 +133,9 @@ function OffersContent() {
       q,
       (snapshot) => {
         const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
           ...doc.data(),
+          // دايمًا استخدم id من المستند نفسه
+          id: doc.id,
         }));
         setProducts(data);
       },
@@ -203,6 +213,9 @@ function OffersContent() {
         shop: shop,
       };
 
+      // لا نخزن id القديم الخاص بالمنتج الأصلي داخل مستند العروض
+      delete offerProduct.id;
+
       // إضافة المنتج في offers
       await addDoc(collection(db, "offers"), offerProduct);
 
@@ -229,16 +242,41 @@ function OffersContent() {
 
     setIsProcessing(true);
     try {
-      const offerRef = doc(db, "offers", offerToReturn.id);
-      const offerSnap = await getDoc(offerRef);
+      let offerRef = null;
+      let offerSnap = null;
+      let offerData = null;
 
-      if (!offerSnap.exists()) {
+      // محاولة البحث بالـ id أولاً
+      if (offerToReturn.id) {
+        offerRef = doc(db, "offers", offerToReturn.id);
+        offerSnap = await getDoc(offerRef);
+        
+        if (offerSnap.exists()) {
+          offerData = offerSnap.data();
+        }
+      }
+
+      // إذا لم يتم العثور عليه بالـ id، البحث بالكود
+      if (!offerData && offerToReturn.code) {
+        const q = query(
+          collection(db, "offers"),
+          where("code", "==", offerToReturn.code),
+          where("shop", "==", shop)
+        );
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+          const docSnap = querySnapshot.docs[0];
+          offerRef = docSnap.ref;
+          offerData = docSnap.data();
+        }
+      }
+
+      if (!offerData) {
         showError("المنتج غير موجود في العروض");
         setIsProcessing(false);
         return;
       }
-
-      const offerData = offerSnap.data();
 
       // إنشاء منتج للعودة إلى lacosteProducts
       const returnProduct = {
@@ -253,12 +291,29 @@ function OffersContent() {
       delete returnProduct.originalSellPrice;
       delete returnProduct.originalFinalPrice;
       delete returnProduct.isOffer;
+      // لا ننقل id الخاص بمستند العرض إلى المنتجات
+      delete returnProduct.id;
 
       // إضافة المنتج في lacosteProducts
       await addDoc(collection(db, "lacosteProducts"), returnProduct);
 
-      // حذف من offers
-      await deleteDoc(offerRef);
+      // حذف من offers - يجب أن يكون offerRef موجوداً الآن
+      if (offerRef) {
+        await deleteDoc(offerRef);
+      } else {
+        // كحل احتياطي، البحث بالكود وحذفه
+        const q = query(
+          collection(db, "offers"),
+          where("code", "==", offerToReturn.code),
+          where("shop", "==", shop)
+        );
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          await deleteDoc(querySnapshot.docs[0].ref);
+        } else {
+          console.warn("لم يتم العثور على المنتج في offers للحذف");
+        }
+      }
 
       success("✅ تم إرجاع المنتج بنجاح");
       setShowReturnModal(false);
@@ -277,7 +332,39 @@ function OffersContent() {
 
     setIsProcessing(true);
     try {
-      await deleteDoc(doc(db, "offers", offerToDelete.id));
+      let offerRef = null;
+
+      // محاولة البحث بالـ id أولاً
+      if (offerToDelete.id) {
+        const offerDocRef = doc(db, "offers", offerToDelete.id);
+        const offerSnap = await getDoc(offerDocRef);
+        
+        if (offerSnap.exists()) {
+          offerRef = offerDocRef;
+        }
+      }
+
+      // إذا لم يتم العثور عليه بالـ id، البحث بالكود
+      if (!offerRef && offerToDelete.code) {
+        const q = query(
+          collection(db, "offers"),
+          where("code", "==", offerToDelete.code),
+          where("shop", "==", shop)
+        );
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+          offerRef = querySnapshot.docs[0].ref;
+        }
+      }
+
+      if (!offerRef) {
+        showError("المنتج غير موجود في العروض");
+        setIsProcessing(false);
+        return;
+      }
+
+      await deleteDoc(offerRef);
       success("✅ تم حذف المنتج من العروض بنجاح");
       setShowDeleteModal(false);
       setOfferToDelete(null);
@@ -287,15 +374,101 @@ function OffersContent() {
     } finally {
       setIsProcessing(false);
     }
-  }, [offerToDelete, success, showError]);
+  }, [offerToDelete, shop, success, showError]);
 
-  // تصفية العروض
-  const filteredOffers = useMemo(() => {
-    if (!searchCode.trim()) return offers;
-    return offers.filter((offer) =>
-      offer.code?.toString().includes(searchCode.trim())
-    );
-  }, [offers, searchCode]);
+  // Helper function to compute total quantity from colors
+  const computeTotalQtyFromColors = useCallback((colorsArr) => {
+    if (!Array.isArray(colorsArr)) return 0;
+    let total = 0;
+    colorsArr.forEach((c) => {
+      if (Array.isArray(c.sizes)) {
+        c.sizes.forEach((s) => {
+          total += Number(s.qty || 0);
+        });
+      } else if (c.quantity) {
+        total += Number(c.quantity || 0);
+      }
+    });
+    return total;
+  }, []);
+
+  // Helper function to compute product quantity
+  const computeProductQuantity = useCallback(
+    (product) => {
+      if (product.colors && product.colors.length) {
+        return computeTotalQtyFromColors(product.colors);
+      }
+      return Number(product.quantity || 0);
+    },
+    [computeTotalQtyFromColors]
+  );
+
+  // Filtered offers using useMemo
+  const filteredOffersMemo = useMemo(() => {
+    let filtered = offers;
+
+    if (searchCode.trim()) {
+      const term = searchCode.trim().toLowerCase();
+      filtered = filtered.filter((o) => {
+        const codeStr = o.code?.toString().toLowerCase() || "";
+        const nameStr = (o.name || "").toLowerCase();
+        const merchantStr = (o.merchantName || "").toLowerCase();
+        return (
+          codeStr.includes(term) ||
+          nameStr.includes(term) ||
+          merchantStr.includes(term)
+        );
+      });
+    }
+
+    // Filter by section
+    if (filterSection && filterSection !== "الكل") {
+      filtered = filtered.filter((o) => o.section === filterSection);
+    }
+
+    return filtered;
+  }, [offers, searchCode, filterSection]);
+
+  // Calculate totals using useMemo
+  const totals = useMemo(() => {
+    let totalQty = 0;
+    let totalBuyAmount = 0;
+    let totalSellAmount = 0;
+    let finalTotalAmount = 0;
+
+    filteredOffersMemo.forEach((offer) => {
+      const offerQty = computeProductQuantity(offer);
+      totalQty += offerQty;
+      totalBuyAmount += (offer.buyPrice || 0) * offerQty;
+      totalSellAmount += (offer.sellPrice || 0) * offerQty;
+      finalTotalAmount += (offer.finalPrice || 0) * offerQty;
+    });
+
+    return {
+      totalQty,
+      totalBuy: totalBuyAmount,
+      totalSell: totalSellAmount,
+      finalTotal: finalTotalAmount,
+    };
+  }, [filteredOffersMemo, computeProductQuantity]);
+
+  // Update state from memoized values
+  useEffect(() => {
+    setFilteredOffers(filteredOffersMemo);
+    setTotalProducts(totals.totalQty);
+    setTotalBuy(totals.totalBuy);
+    setTotalSell(totals.totalSell);
+    setFinalTotal(totals.finalTotal);
+  }, [filteredOffersMemo, totals]);
+
+  // Get unique sections from offers
+  const uniqueSections = useMemo(() => {
+    const sections = new Set();
+    offers.forEach((offer) => {
+      if (offer.section) sections.add(offer.section);
+    });
+    return Array.from(sections).sort();
+  }, [offers]);
 
   if (loading) return <Loader />;
   if (!auth) return null;
@@ -304,98 +477,254 @@ function OffersContent() {
     <div className={styles.offers}>
       <SideBar />
       <div className={styles.content}>
-        <div className={styles.header}>
-          <h2 className={styles.title}>العروض</h2>
-          <button
-            className={styles.addBtn}
-            onClick={() => {
-              setShowAddModal(true);
-              setSearchCode("");
-              setSelectedProduct(null);
-            }}
-          >
-            <FaPlus />
-            إضافة منتج للعروض
-          </button>
-        </div>
+        <div className={styles.stockMenu}>
+          {/* Header */}
+          <div className={styles.menuHeader}>
+            <h1 className={styles.menuTitle}>العروض</h1>
+            <div className={styles.headerControls}>
+              {/* Filter Dropdown */}
+              <div className={styles.filterDropdown}>
+                <select
+                  value={filterSection}
+                  onChange={(e) => setFilterSection(e.target.value)}
+                  className={styles.filterSelect}
+                >
+                  <option value="الكل">الكل</option>
+                  {uniqueSections.map((section) => (
+                    <option key={section} value={section}>
+                      {section}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-        <div className={styles.searchBox}>
-          <CiSearch />
-          <input
-            type="text"
-            placeholder="البحث بالكود..."
-            value={searchCode}
-            onChange={(e) => setSearchCode(e.target.value)}
-            className={styles.searchInput}
-          />
-        </div>
+              {/* Search Box */}
+              <div className={styles.searchContainer}>
+                <CiSearch className={styles.searchIcon} />
+                <input
+                  type="text"
+                  list="codesList"
+                  placeholder="بحث..."
+                  value={searchCode}
+                  onChange={(e) => setSearchCode(e.target.value)}
+                  className={styles.searchInput}
+                />
+                <datalist id="codesList">
+                  {offers.map((o) => (
+                    <option key={o.id} value={o.code} />
+                  ))}
+                </datalist>
+              </div>
 
-        <div className={styles.tableWrapper}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>الكود</th>
-                <th>الاسم</th>
-                <th>سعر البيع</th>
-                <th>السعر النهائي</th>
-                <th>الكمية</th>
-                <th>الإجراءات</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredOffers.length === 0 ? (
+              {/* Add Button */}
+              <button
+                className={styles.addStockBtn}
+                onClick={() => {
+                  setShowAddModal(true);
+                  setSearchCode("");
+                  setSelectedProduct(null);
+                }}
+              >
+                <FaPlus className={styles.addIcon} />
+                <span>إضافة منتج للعروض</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Summary Cards */}
+          <div className={styles.summaryCards}>
+            <div className={styles.summaryCard}>
+              <span className={styles.summaryLabel}>إجمالي الشراء</span>
+              <span className={styles.summaryValue}>
+                {totalBuy.toFixed(2)} EGP
+              </span>
+            </div>
+            <div className={styles.summaryCard}>
+              <span className={styles.summaryLabel}>إجمالي البيع</span>
+              <span className={styles.summaryValue}>
+                {totalSell.toFixed(2)} EGP
+              </span>
+            </div>
+            <div className={styles.summaryCard}>
+              <span className={styles.summaryLabel}>إجمالي النهائي</span>
+              <span className={styles.summaryValue}>
+                {finaltotal.toFixed(2)} EGP
+              </span>
+            </div>
+            <div className={styles.summaryCard}>
+              <span className={styles.summaryLabel}>إجمالي العروض</span>
+              <span className={styles.summaryValue}>
+                {totalProducts} قطعة
+              </span>
+            </div>
+          </div>
+
+          {/* Offers Table */}
+          <div className={styles.tableWrapper}>
+            <table className={styles.productsTable}>
+              <thead>
                 <tr>
-                  <td colSpan={6} className={styles.emptyCell}>
-                    لا توجد عروض
-                  </td>
+                  <th>الكود</th>
+                  <th>الاسم</th>
+                  <th>القسم</th>
+                  <th>اسم التاجر</th>
+                  <th>سعر الشراء</th>
+                  <th>سعر البيع</th>
+                  <th>السعر النهائي</th>
+                  <th>الكمية</th>
+                  <th>الألوان</th>
+                  <th>خيارات</th>
                 </tr>
-              ) : (
-                filteredOffers.map((offer) => (
-                  <tr key={offer.id}>
-                    <td>{offer.code || "-"}</td>
-                    <td>{offer.name || "-"}</td>
-                    <td>{offer.sellPrice?.toFixed(2) || "0.00"} جنيه</td>
-                    <td>{offer.finalPrice?.toFixed(2) || "0.00"} جنيه</td>
-                    <td>
-                      {offer.colors
-                        ? offer.colors.reduce((sum, c) => {
-                            if (c.sizes) {
-                              return (
-                                sum +
-                                c.sizes.reduce((s, size) => s + (size.qty || 0), 0)
-                              );
-                            }
-                            return sum + (c.quantity || 0);
-                          }, 0)
-                        : offer.quantity || 0}
-                    </td>
-                    <td className={styles.actionsCell}>
-                      <button
-                        className={styles.returnBtn}
-                        onClick={() => {
-                          setOfferToReturn(offer);
-                          setShowReturnModal(true);
-                        }}
-                        title="إرجاع"
-                      >
-                        <FaUndo />
-                      </button>
-                      <button
-                        className={styles.deleteBtn}
-                        onClick={() => {
-                          setOfferToDelete(offer);
-                          setShowDeleteModal(true);
-                        }}
-                        title="حذف"
-                      >
-                        <FaTrash />
-                      </button>
+              </thead>
+              <tbody>
+                {filteredOffers.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className={styles.emptyCell}>
+                      لا توجد عروض
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  [...filteredOffers]
+                    .sort((a, b) => Number(a.code) - Number(b.code))
+                    .map((offer) => {
+                      const colorsList = offer.colors || [];
+                      let totalQ = 0;
+
+                      colorsList.forEach((c) => {
+                        const colorTotal =
+                          c.sizes && c.sizes.length
+                            ? c.sizes.reduce(
+                                (s, it) => s + Number(it.qty || 0),
+                                0
+                              )
+                            : c.quantity || 0;
+                        totalQ += colorTotal;
+                      });
+
+                      return (
+                        <tr key={offer.id}>
+                          <td className={styles.codeCell}>{offer.code || "-"}</td>
+                          <td className={styles.nameCell}>
+                            {offer.name || "-"}
+                          </td>
+                          <td className={styles.sectionCell}>
+                            <span className={styles.sectionBadge}>
+                              {offer.section || "-"}
+                            </span>
+                          </td>
+                          <td>{offer.merchantName || "-"}</td>
+                          <td className={styles.priceCell}>
+                            {offer.buyPrice || 0} EGP
+                          </td>
+                          <td className={styles.priceCell}>
+                            {offer.sellPrice || 0} EGP
+                          </td>
+                          <td className={styles.priceCell}>
+                            {offer.finalPrice || 0} EGP
+                          </td>
+                          <td className={styles.stockCell}>
+                            <span className={styles.stockBadge}>
+                              {totalQ || offer.quantity || 0}
+                            </span>
+                          </td>
+                          <td className={styles.colorsCell}>
+                            {colorsList.length === 0 ? (
+                              <span className={styles.emptyText}>-</span>
+                            ) : (
+                              <div className={styles.colorsList}>
+                                {colorsList.map((c) => {
+                                  const colorTotal =
+                                    c.sizes && c.sizes.length
+                                      ? c.sizes.reduce(
+                                          (s, it) => s + Number(it.qty || 0),
+                                          0
+                                        )
+                                      : c.quantity || 0;
+
+                                  const sizesDetails = c.sizes && c.sizes.length
+                                    ? c.sizes.map(s => `${s.size}: ${s.qty}`).join(", ")
+                                    : c.quantity ? `الكمية: ${c.quantity}` : "لا توجد مقاسات";
+
+                                  return (
+                                    <div
+                                      key={c.color}
+                                      className={styles.colorTagContainer}
+                                    >
+                                      <span
+                                        className={styles.colorTag}
+                                        title={sizesDetails}
+                                      >
+                                        {c.color} ({colorTotal})
+                                      </span>
+                                      <div className={styles.colorTooltip}>
+                                        <div className={styles.tooltipHeader}>
+                                          <strong>{c.color}</strong>
+                                          <span className={styles.tooltipTotal}>
+                                            إجمالي: {colorTotal}
+                                          </span>
+                                        </div>
+                                        <div className={styles.tooltipSizes}>
+                                          {c.sizes && c.sizes.length > 0
+                                            ? c.sizes.map((s) => (
+                                                <div
+                                                  key={s.size}
+                                                  className={styles.tooltipSizeItem}
+                                                >
+                                                  <span className={styles.tooltipSizeName}>
+                                                    {s.size}
+                                                  </span>
+                                                  <span className={styles.tooltipSizeQty}>
+                                                    {s.qty}
+                                                  </span>
+                                                </div>
+                                              ))
+                                            : c.quantity && (
+                                                <div className={styles.tooltipSizeItem}>
+                                                  <span className={styles.tooltipSizeName}>
+                                                    الكمية
+                                                  </span>
+                                                  <span className={styles.tooltipSizeQty}>
+                                                    {c.quantity}
+                                                  </span>
+                                                </div>
+                                              )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </td>
+                          <td className={styles.actionsCell}>
+                            <button
+                              className={styles.returnBtn}
+                              onClick={() => {
+                                setOfferToReturn(offer);
+                                setShowReturnModal(true);
+                              }}
+                              title="إرجاع"
+                            >
+                              <FaUndo />
+                            </button>
+                            <button
+                              className={styles.deleteBtn}
+                              onClick={() => {
+                                setOfferToDelete(offer);
+                                setShowDeleteModal(true);
+                              }}
+                              title="حذف"
+                            >
+                              <FaTrash />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 

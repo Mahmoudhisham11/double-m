@@ -652,14 +652,33 @@ function ReportsContent() {
           return;
         }
 
-        // Update stock
-        const prodQuerySnap = await getDocs(
+        // Update stock - check if item is from offers
+        const isOffer = item.isOffer || false;
+        let collectionName = isOffer ? "offers" : "lacosteProducts";
+        
+        // البحث في الـ collection الأول
+        let prodQuerySnap = await getDocs(
           query(
-            collection(db, "lacosteProducts"),
+            collection(db, collectionName),
             where("code", "==", item.code),
             where("shop", "==", item.shop || shop)
           )
         );
+
+        // لو مش موجود في الـ collection الأول، جرّب التاني
+        if (prodQuerySnap.empty) {
+          const alternateCollection = isOffer ? "lacosteProducts" : "offers";
+          prodQuerySnap = await getDocs(
+            query(
+              collection(db, alternateCollection),
+              where("code", "==", item.code),
+              where("shop", "==", item.shop || shop)
+            )
+          );
+          if (!prodQuerySnap.empty) {
+            collectionName = alternateCollection;
+          }
+        }
 
         if (!prodQuerySnap.empty) {
           // المنتج موجود، نحدث الكمية فقط
@@ -738,7 +757,17 @@ function ReportsContent() {
             ];
           }
 
-          await addDoc(collection(db, "lacosteProducts"), newProduct);
+          // لو المنتج من العروض، نضيفه في offers
+          // لو المنتج من المنتجات (أو اترجع من العروض)، نضيفه في lacosteProducts
+          // لكن لو المنتج اترجع من العروض، isOffer هيكون false
+          // فمشكلة - لازم نضيفه في lacosteProducts دايماً
+          // الحل: نضيفه في lacosteProducts دايماً (مش offers) لأن المرتجع لازم يرجع للمنتجات
+          const finalCollectionName = "lacosteProducts";
+          
+          // لا نحفظ isOffer أو originalSellPrice لأن المنتج رجع للمنتجات
+          // نضيفه كمنتج عادي في lacosteProducts
+
+          await addDoc(collection(db, finalCollectionName), newProduct);
         }
 
         // Handle invoice in reports

@@ -98,7 +98,9 @@ export default function VariantModal({
     }
 
     for (const e of entries) {
-      const prodRef = doc(db, "lacosteProducts", product.id);
+      const isOffer = product.isOffer || false;
+      const collectionName = isOffer ? "offers" : "lacosteProducts";
+      const prodRef = doc(db, collectionName, product.id);
       const prodSnap = await getDoc(prodRef);
       const prodData = prodSnap.exists() ? prodSnap.data() : product;
       const available = getAvailableQuantity(prodData, selectedColor, e.size);

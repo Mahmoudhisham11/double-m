@@ -25,8 +25,9 @@ export function useOffers(shop) {
         const isFromCache = snapshot.metadata.fromCache;
 
         const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
           ...doc.data(),
+          // تأكد أن id الحقيقي للمستند دائمًا هو doc.id
+          id: doc.id,
         }));
 
         setOffers(data);

@@ -69,6 +69,22 @@ export default function EmployeeStatsModal({
                 {stats.totalSales.toFixed(2)} جنيه
               </span>
             </div>
+            
+            <div style={{ 
+              display: "flex", 
+              justifyContent: "space-between", 
+              alignItems: "center",
+              padding: "12px",
+              background: "var(--surface)",
+              borderRadius: "8px"
+            }}>
+              <span style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)" }}>
+                الربح من المبيعات:
+              </span>
+              <span style={{ fontSize: "18px", fontWeight: 700, color: "var(--success)" }}>
+                {stats.totalProfit?.toFixed(2) || "0.00"} جنيه
+              </span>
+            </div>
           </div>
         </div>
         <div className={styles.popupBtns} style={{ marginTop: "20px" }}>
