@@ -1,7 +1,7 @@
 "use client";
 import SideBar from "@/components/SideBar/page";
 import styles from "./styles.module.css";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { CiSearch, CiPhone } from "react-icons/ci";
 import { FaRegTrashAlt } from "react-icons/fa";
 import { GiMoneyStack } from "react-icons/gi";
@@ -60,26 +60,111 @@ function DebtsContent() {
   const shop =
     typeof window !== "undefined" ? localStorage.getItem("shop") : "";
 
-  const getTreasuryBalance = async () => {
-    const q = query(collection(db, "dailyProfit"), where("shop", "==", shop));
-    const snapshot = await getDocs(q);
+  // Helper functions (مثل ما في profit/page.jsx)
+  const arabicToEnglishNumbers = useCallback((str) => {
+    if (!str) return str;
+    const map = {
+      "٠": "0",
+      "١": "1",
+      "٢": "2",
+      "٣": "3",
+      "٤": "4",
+      "٥": "5",
+      "٦": "6",
+      "٧": "7",
+      "٨": "8",
+      "٩": "9",
+    };
+    return str.replace(/[٠-٩]/g, (d) => map[d]);
+  }, []);
 
-    let totalSales = 0;
-    let totalMasrofat = 0;
-    let totalSaddad = 0;
+  const parseDate = useCallback(
+    (val) => {
+      if (!val) return null;
+      if (val instanceof Date) return val;
+      if (val?.toDate) return val.toDate();
+      if (val?.seconds) return new Date(val.seconds * 1000);
 
-    snapshot.forEach((doc) => {
-      const data = doc.data();
-      if (data.type === "سداد") {
-        totalSaddad += Number(data.totalSales || 0);
-      } else {
-        totalSales += Number(data.totalSales || 0);
+      if (typeof val === "string") {
+        const normalized = arabicToEnglishNumbers(val.trim());
+        const dmyMatch = normalized.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (dmyMatch) {
+          const [, d, m, y] = dmyMatch;
+          return new Date(Number(y), Number(m) - 1, Number(d));
+        }
+        const isoMatch = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        if (isoMatch) {
+          const [, y, m, d] = isoMatch;
+          return new Date(Number(y), Number(m) - 1, Number(d));
+        }
+        const tryDate = new Date(normalized);
+        if (!isNaN(tryDate.getTime())) return tryDate;
       }
-      totalMasrofat += Number(data.totalMasrofat || 0);
+      return null;
+    },
+    [arabicToEnglishNumbers]
+  );
+
+  const getTreasuryBalance = async () => {
+    // حساب الخزنة (مثل cashTotal في profit/page.jsx)
+    // نفس المنطق المستخدم في صفحة الأرباح مع إضافة السحوبات/الإيداعات
+    
+    // 1. جلب بيانات dailyProfit
+    const dailyQ = query(collection(db, "dailyProfit"), where("shop", "==", shop));
+    const dailySnap = await getDocs(dailyQ);
+
+    // فلترة البيانات من 1970-01-01 حتى الآن (عند عدم وجود فلتر تاريخ)
+    const from = new Date("1970-01-01");
+    const to = new Date();
+
+    const dailyForCash = [];
+    dailySnap.forEach((docSnap) => {
+      const data = docSnap.data();
+      const dDate = parseDate(data.date) || parseDate(data.createdAt);
+      if (dDate && dDate >= from && dDate <= to) {
+        dailyForCash.push(data);
+      }
     });
 
-    const balance = totalSales - totalMasrofat - totalSaddad;
-    return balance;
+    // مصروفات اليوم من dailyProfit.totalMasrofat
+    const totalMasrofatFromDailyForCash = dailyForCash.reduce(
+      (sum, d) => sum + Number(d.totalMasrofat || 0),
+      0
+    );
+
+    // إجمالي الكاش من المبيعات (مع طرح عمليات type === "سداد")
+    const totalCash = dailyForCash.reduce((sum, d) => {
+      const sales = Number(d.totalSales || 0);
+      if (d.type === "سداد") {
+        return sum - sales;
+      }
+      return sum + sales;
+    }, 0);
+
+    // الخزنة = إجمالي المبيعات - مصاريف dailyProfit.totalMasrofat
+    let remainingCash = totalCash - totalMasrofatFromDailyForCash;
+
+    // 2. جلب السحوبات/الإيداعات التي تؤثر على الخزنة
+    const withdrawsQ = query(collection(db, "withdraws"), where("shop", "==", shop));
+    const withdrawsSnap = await getDocs(withdrawsQ);
+
+    withdrawsSnap.forEach((docSnap) => {
+      const w = docSnap.data();
+      const wDate = parseDate(w.date) || parseDate(w.createdAt);
+      if (!wDate || wDate < from || wDate > to) return;
+
+      const remaining = Number(w.amount || 0) - Number(w.paid || 0);
+
+      if (w.person === "الخزنة") {
+        // إيداع للخزنة يزيد الرصيد
+        remainingCash += remaining;
+      } else {
+        // سحب من الخزنة يقلل الرصيد
+        remainingCash -= remaining;
+      }
+    });
+
+    return remainingCash;
   };
 
   // ===== payment modal state
