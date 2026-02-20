@@ -2,7 +2,7 @@
 import styles from "../styles.module.css";
 import { useState, useEffect } from "react";
 import { getAvailableQuantity } from "@/utils/productHelpers";
-import { CONFIG } from "@/constants/config";
+import { CONFIG, PERMISSIONS } from "@/constants/config";
 import { useNotification } from "@/contexts/NotificationContext";
 import PasswordModal from "./PasswordModal";
 
@@ -135,6 +135,17 @@ export default function VariantModal({
     const sellPrice = Number(product.sellPrice);
 
     if (priceNum < finalPrice) {
+      // Check if user is admin
+      const userName = typeof window !== "undefined" ? localStorage.getItem("userName") : "";
+      const isAdmin = userName ? PERMISSIONS.EDIT_PRICES(userName) : false;
+
+      if (isAdmin) {
+        // Admin can add product directly without password
+        await proceedWithAdd(priceNum);
+        return;
+      }
+
+      // Non-admin users need password
       setPendingPrice(price);
       setShowPasswordModal(true);
       return;
