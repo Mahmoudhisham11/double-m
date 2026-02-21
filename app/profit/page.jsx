@@ -38,6 +38,7 @@ function ProfitContent() {
   const [netProfit, setNetProfit] = useState(0);
   const [mostafaBalance, setMostafaBalance] = useState(0);
   const [doubleMBalance, setDoubleMBalance] = useState(0);
+  const [midoBalance, setMidoBalance] = useState(0);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [isHidden, setIsHidden] = useState(true);
@@ -236,6 +237,7 @@ function ProfitContent() {
         netProfit: 0,
         mostafa: 0, 
         doubleM: 0,
+        mido: 0,
         operationalCashTotal: 0,
       };
 
@@ -344,12 +346,14 @@ function ProfitContent() {
 
     let mostafaSum = 0;
     let doubleMSum = 0;
+    let midoSum = 0;
 
     // أرصدة الشركاء تتأثر بالتصفير resetAt
     withdrawsForProfit.forEach((w) => {
       const remaining = Number(w.amount || 0) - Number(w.paid || 0);
       if (w.person === "مصطفى") mostafaSum += remaining;
       if (w.person === "دبل M") doubleMSum += remaining;
+      if (w.person === "ميدو") midoSum += remaining;
     });
 
     // حساب الخزنة التشغيلية (بدون تأثير فلتر التاريخ وبدون علاقة بالتصفير)
@@ -385,13 +389,15 @@ function ProfitContent() {
       (remainingCash < 0 ||
         netProfitValue < 0 ||
         mostafaSum < 0 ||
-        doubleMSum < 0)
+        doubleMSum < 0 ||
+        midoSum < 0)
     ) {
       console.warn("[Profit] Negative financial value detected", {
         remainingCash,
         netProfitValue,
         mostafaSum,
         doubleMSum,
+        midoSum,
       });
     }
 
@@ -402,6 +408,7 @@ function ProfitContent() {
       netProfit: netProfitValue, // صافي الربح = مجموع أرباح الفواتير - المصروفات (بدون فاتورة مرتجع) - السحوبات التي تؤثر على صافي الربح
       mostafa: mostafaSum,
       doubleM: doubleMSum,
+      mido: midoSum,
       operationalCashTotal: operationalRemainingCash,
     };
   }, [
@@ -422,6 +429,7 @@ function ProfitContent() {
     setNetProfit(calculatedTotals.netProfit);
     setMostafaBalance(calculatedTotals.mostafa);
     setDoubleMBalance(calculatedTotals.doubleM);
+    setMidoBalance(calculatedTotals.mido);
     setOperationalCashTotal(calculatedTotals.operationalCashTotal);
   }, [calculatedTotals]);
 
@@ -711,6 +719,12 @@ function ProfitContent() {
               {isHidden ? "*****" : Number(doubleMBalance || 0).toFixed(2)} EGP
             </span>
           </div>
+          <div className={styles.summaryCard}>
+            <span className={styles.summaryLabel}>ميدو</span>
+            <span className={styles.summaryValue}>
+              {isHidden ? "*****" : Number(midoBalance || 0).toFixed(2)} EGP
+            </span>
+          </div>
         </div>
 
         {/* Action Buttons */}
@@ -834,6 +848,7 @@ function ProfitContent() {
                   <option value="">اختر الشخص</option>
                   <option value="مصطفى">مصطفى</option>
                   <option value="دبل M">دبل M</option>
+                  <option value="ميدو">ميدو</option>
                 </select>
               </div>
               <div className={styles.inputContainer}>

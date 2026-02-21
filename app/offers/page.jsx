@@ -22,6 +22,7 @@ import {
   useNotification,
 } from "@/contexts/NotificationContext";
 import ConfirmModal from "@/components/Main/Modals/ConfirmModal";
+import { PERMISSIONS } from "@/constants/config";
 import { FaPlus, FaTrash, FaUndo } from "react-icons/fa";
 import { CiSearch } from "react-icons/ci";
 import { MdDriveFileRenameOutline } from "react-icons/md";
@@ -31,6 +32,7 @@ function OffersContent() {
   const { success, error: showError } = useNotification();
   const router = useRouter();
   const [auth, setAuth] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [offers, setOffers] = useState([]);
   const [products, setProducts] = useState([]);
@@ -56,43 +58,19 @@ function OffersContent() {
 
   // التحقق من الصلاحيات
   useEffect(() => {
-    const checkLock = async () => {
-      try {
-        const userName = localStorage.getItem("userName");
-        if (!userName) {
-          router.push("/");
-          return;
-        }
-
-        const q = query(
-          collection(db, "users"),
-          where("userName", "==", userName)
-        );
-        const querySnapshot = await getDocs(q);
-
-        if (!querySnapshot.empty) {
-          const user = querySnapshot.docs[0].data();
-          if (user.permissions?.products === true) {
-            showError("ليس لديك الصلاحية للوصول إلى هذه الصفحة❌");
-            router.push("/");
-            return;
-          } else {
-            setAuth(true);
-          }
-        } else {
-          router.push("/");
-          return;
-        }
-      } catch (error) {
-        console.error("Error checking permissions:", error);
-        showError("حدث خطأ أثناء التحقق من الصلاحيات");
+    if (typeof window !== "undefined") {
+      const userName = localStorage.getItem("userName");
+      if (!userName) {
         router.push("/");
-      } finally {
-        setLoading(false);
+        return;
       }
-    };
-    checkLock();
-  }, [router, showError]);
+
+      const hasAccess = PERMISSIONS.MANAGE_OFFERS(userName);
+      setIsAdmin(hasAccess);
+      setAuth(true);
+      setLoading(false);
+    }
+  }, [router]);
 
   // جلب منتجات العروض
   useEffect(() => {
@@ -517,17 +495,19 @@ function OffersContent() {
               </div>
 
               {/* Add Button */}
-              <button
-                className={styles.addStockBtn}
-                onClick={() => {
-                  setShowAddModal(true);
-                  setSearchCode("");
-                  setSelectedProduct(null);
-                }}
-              >
-                <FaPlus className={styles.addIcon} />
-                <span>إضافة منتج للعروض</span>
-              </button>
+              {isAdmin && (
+                <button
+                  className={styles.addStockBtn}
+                  onClick={() => {
+                    setShowAddModal(true);
+                    setSearchCode("");
+                    setSelectedProduct(null);
+                  }}
+                >
+                  <FaPlus className={styles.addIcon} />
+                  <span>إضافة منتج للعروض</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -697,26 +677,30 @@ function OffersContent() {
                             )}
                           </td>
                           <td className={styles.actionsCell}>
-                            <button
-                              className={styles.returnBtn}
-                              onClick={() => {
-                                setOfferToReturn(offer);
-                                setShowReturnModal(true);
-                              }}
-                              title="إرجاع"
-                            >
-                              <FaUndo />
-                            </button>
-                            <button
-                              className={styles.deleteBtn}
-                              onClick={() => {
-                                setOfferToDelete(offer);
-                                setShowDeleteModal(true);
-                              }}
-                              title="حذف"
-                            >
-                              <FaTrash />
-                            </button>
+                            {isAdmin && (
+                              <>
+                                <button
+                                  className={styles.returnBtn}
+                                  onClick={() => {
+                                    setOfferToReturn(offer);
+                                    setShowReturnModal(true);
+                                  }}
+                                  title="إرجاع"
+                                >
+                                  <FaUndo />
+                                </button>
+                                <button
+                                  className={styles.deleteBtn}
+                                  onClick={() => {
+                                    setOfferToDelete(offer);
+                                    setShowDeleteModal(true);
+                                  }}
+                                  title="حذف"
+                                >
+                                  <FaTrash />
+                                </button>
+                              </>
+                            )}
                           </td>
                         </tr>
                       );
