@@ -101,10 +101,13 @@ export default function StatsCards({
       
       <div 
         className={styles.summaryCard}
-        style={{ cursor: stats.topEmployee !== "لا يوجد موظفين" ? "pointer" : "default" }}
+        style={{ cursor: "pointer" }}
+        title="اضغط لعرض إحصائيات كل الموظفين"
         onClick={() => {
-          if (stats.topEmployee !== "لا يوجد موظفين" && onTopEmployeeClick) {
-            onTopEmployeeClick(stats.topEmployee);
+          if (onTopEmployeeClick) {
+            onTopEmployeeClick(
+              stats.topEmployee !== "لا يوجد موظفين" ? stats.topEmployee : ""
+            );
           }
         }}
       >

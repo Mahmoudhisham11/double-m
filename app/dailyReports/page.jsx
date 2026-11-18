@@ -14,6 +14,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 import Loader from "@/components/Loader/Loader";
+import { useSections } from "@/hooks/useSections";
 
 export default function DailyReports() {
   const [products, setProducts] = useState([]);
@@ -23,6 +24,9 @@ export default function DailyReports() {
   const [wared, setWared] = useState([]);
   const [sales, setSales] = useState([]);
   const [lastCloseDay, setLastCloseDay] = useState(null);
+  const sectionsShop =
+    typeof window !== "undefined" ? localStorage.getItem("shop") : "";
+  const { sections } = useSections(sectionsShop);
 
   // دالة حساب كمية منتج واحد (حسب الألوان والمقاسات)
   const computeTotalQtyFromColors = useCallback((colorsArr) => {
@@ -443,13 +447,11 @@ export default function DailyReports() {
               className={styles.sectionSelect}
             >
               <option value="">كل الأقسام</option>
-              <option value="جينز">جينز</option>
-              <option value="تيشيرت">تيشيرت</option>
-              <option value="شروال">شروال</option>
-              <option value="جاكت">جاكت</option>
-              <option value="قميص">قميص</option>
-              <option value="ترينج">ترينج</option>
-              <option value="اندر شيرت">اندر شيرت</option>
+              {sections.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
             </select>
           </div>
         </div>

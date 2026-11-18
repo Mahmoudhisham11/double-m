@@ -36,9 +36,16 @@ import { CONFIG } from "@/constants/config";
 import InputModal from "./components/InputModal";
 import ConfirmModal from "@/components/Main/Modals/ConfirmModal";
 import PasswordModal from "@/components/Main/Modals/PasswordModal";
+import { useSections } from "@/hooks/useSections";
+import SectionsManager from "@/components/SectionsManager/SectionsManager";
 
 function ProductsContent() {
   const { success, error: showError, warning } = useNotification();
+  const sectionsShop =
+    typeof window !== "undefined" ? localStorage.getItem("shop") : "";
+  const { sections, addSection, renameSection, deleteSection } =
+    useSections(sectionsShop);
+  const [showSectionsManager, setShowSectionsManager] = useState(false);
   const [auth, setAuth] = useState(false);
   const [loading, setLoading] = useState(true);
   const [active, setActive] = useState(false);
@@ -275,10 +282,12 @@ function ProductsContent() {
         where("type", "==", "product")
       );
       const snapshot = await getDocs(q);
+      // منتجات العروض (ممكن تتضاف من صفحة العروض مباشرة) عشان الكود ميتكررش
+      const offersSnapshot = await getDocs(
+        query(collection(db, "offers"), where("shop", "==", shop))
+      );
 
-      if (snapshot.empty) return 1000;
-
-      const codes = snapshot.docs
+      const codes = [...snapshot.docs, ...offersSnapshot.docs]
         .map((doc) => Number(doc.data().code))
         .filter((code) => !isNaN(code) && code >= 1000);
 
@@ -1266,13 +1275,11 @@ function ProductsContent() {
                     className={styles.filterSelect}
                   >
                     <option value="الكل">الكل</option>
-                    <option value="جينز">جينز</option>
-                    <option value="تيشيرت">تيشيرت</option>
-                    <option value="شروال">شروال</option>
-                    <option value="جاكت">جاكت</option>
-                    <option value="قميص">قميص</option>
-                    <option value="ترينج">ترينج</option>
-                    <option value="اندر شيرت">اندر شيرت</option>
+                    {sections.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -1307,6 +1314,13 @@ function ProductsContent() {
                 >
                   <FaPlus className={styles.addIcon} />
                   <span>إضافة منتج</span>
+                </button>
+                <button
+                  className={styles.addStockBtn}
+                  onClick={() => setShowSectionsManager(true)}
+                >
+                  <BiCategory className={styles.addIcon} />
+                  <span>إدارة الأقسام</span>
                 </button>
                 <button
                   className={styles.addStockBtn}
@@ -1622,13 +1636,11 @@ function ProductsContent() {
                   }
                 >
                   <option value="">اختر القسم</option>
-                  <option value="جينز">جينز</option>
-                  <option value="تيشيرت">تيشيرت</option>
-                  <option value="شروال">شروال</option>
-                  <option value="جاكت">جاكت</option>
-                  <option value="قميص">قميص</option>
-                  <option value="ترينج">ترينج</option>
-                  <option value="اندر شيرت">اندر شيرت</option>
+                  {sections.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -2126,6 +2138,17 @@ function ProductsContent() {
           </div>
         </div>
       )}
+
+      <SectionsManager
+        isOpen={showSectionsManager}
+        onClose={() => setShowSectionsManager(false)}
+        sections={sections}
+        addSection={addSection}
+        renameSection={renameSection}
+        deleteSection={deleteSection}
+        onSuccess={success}
+        onError={showError}
+      />
     </div>
   );
 }

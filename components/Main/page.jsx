@@ -722,57 +722,11 @@ function MainContent() {
   }, [suspendedInvoices, success]);
 
   // Handle top employee click
+  // الإحصائيات تُحسب داخل المودال من كل فواتير dailySales (حتى تقفيل اليوم وليس حتى الساعة 12)
   const handleTopEmployeeClick = useCallback((employeeName) => {
-    // حساب إحصائيات الموظف لليوم
-    const today = new Date();
-    const todayStr = `${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`;
-    
-    // تصفية الفواتير للموظف بتاريخ اليوم
-    const todayInvoices = filteredInvoices.filter((invoice) => {
-      if (invoice.employee !== employeeName) return false;
-      
-      // التحقق من التاريخ
-      const invoiceDate = invoice.date?.toDate 
-        ? invoice.date.toDate() 
-        : (invoice.date?.seconds ? new Date(invoice.date.seconds * 1000) : null);
-      
-      if (!invoiceDate) return false;
-      
-      const invoiceDateStr = `${String(invoiceDate.getDate()).padStart(2, "0")}/${String(invoiceDate.getMonth() + 1).padStart(2, "0")}/${invoiceDate.getFullYear()}`;
-      return invoiceDateStr === todayStr;
-    });
-
-    // حساب الإحصائيات
-    const stats = {
-      invoiceCount: todayInvoices.length,
-      totalItems: todayInvoices.reduce((sum, invoice) => {
-        return sum + (invoice.cart || []).reduce((itemSum, item) => {
-          return itemSum + (item.quantity || 0);
-        }, 0);
-      }, 0),
-      totalSales: todayInvoices.reduce((sum, invoice) => sum + (invoice.total || 0), 0),
-      totalProfit: todayInvoices.reduce((sum, invoice) => {
-        // استخدام profit الموجود في الفاتورة أو حسابه من الـ cart
-        if (typeof invoice.profit === "number") {
-          return sum + invoice.profit;
-        }
-        // حساب الربح من الـ cart items
-        const calculatedProfit = (invoice.cart || []).reduce(
-          (profit, item) =>
-            profit +
-            ((item.sellPrice || 0) - (item.buyPrice || 0)) * (item.quantity || 0),
-          0
-        );
-        return sum + calculatedProfit;
-      }, 0),
-    };
-
-    setSelectedEmployeeStats({
-      name: employeeName,
-      stats,
-    });
+    setSelectedEmployeeStats({ name: employeeName });
     setShowEmployeeStatsModal(true);
-  }, [filteredInvoices]);
+  }, []);
 
   const finalTotal = calculateFinalTotal(subtotal, appliedDiscount);
 
@@ -964,7 +918,8 @@ function MainContent() {
           setSelectedEmployeeStats(null);
         }}
         employeeName={selectedEmployeeStats?.name || ""}
-        stats={selectedEmployeeStats?.stats || { invoiceCount: 0, totalItems: 0, totalSales: 0, totalProfit: 0 }}
+        invoices={invoices}
+        employees={employees}
       />
     </div>
   );

@@ -38,10 +38,14 @@ import {
 } from "@/contexts/NotificationContext";
 import { CONFIG } from "@/constants/config";
 import InputModal from "../products/components/InputModal";
+import { useSections } from "@/hooks/useSections";
 import ConfirmModal from "@/components/Main/Modals/ConfirmModal";
 
 function StockContent() {
   const { success, error: showError, warning } = useNotification();
+  const sectionsShop =
+    typeof window !== "undefined" ? localStorage.getItem("shop") : "";
+  const { sections } = useSections(sectionsShop);
   const [auth, setAuth] = useState(false);
   const [loading, setLoading] = useState(true);
   const [active, setActive] = useState(false);
@@ -1256,13 +1260,11 @@ function StockContent() {
                     className={styles.filterSelect}
                   >
                     <option value="الكل">الكل</option>
-                    <option value="جينز">جينز</option>
-                    <option value="تيشيرت">تيشيرت</option>
-                    <option value="شروال">شروال</option>
-                    <option value="جاكت">جاكت</option>
-                    <option value="قميص">قميص</option>
-                    <option value="ترينج">ترينج</option>
-                    <option value="اندر شيرت">اندر شيرت</option>
+                    {sections.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -1625,13 +1627,11 @@ function StockContent() {
                   }
                 >
                   <option value="">اختر القسم</option>
-                  <option value="جينز">جينز</option>
-                  <option value="تيشيرت">تيشيرت</option>
-                  <option value="شروال">شروال</option>
-                  <option value="جاكت">جاكت</option>
-                  <option value="قميص">قميص</option>
-                  <option value="ترينج">ترينج</option>
-                  <option value="اندر شيرت">اندر شيرت</option>
+                  {sections.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>

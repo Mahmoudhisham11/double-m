@@ -52,6 +52,9 @@ export const closeDayService = {
       let totalMasrofat = 0;
       let returnedProfit = 0;
       let netMasrof = 0;
+      // مصروفات (مرتجع / سداد): لا تؤثر على صافي الربح لكنها تخرج من الكاش فعلياً
+      // لذلك تُخصم من المبيعات المرحّلة للخزنة
+      let cashOnlyMasrof = 0;
       const allMasrofat = [];
 
       masrofatSnapshot.forEach((docSnap) => {
@@ -66,6 +69,8 @@ export const closeDayService = {
         // صافي المصروفات التي تؤثر على الربح (بدون فاتورة مرتجع / مصروف سداد)
         if (!isExcluded) {
           netMasrof += masrofValue;
+        } else {
+          cashOnlyMasrof += masrofValue;
         }
 
         if (data.date === todayStr) {
@@ -95,7 +100,11 @@ export const closeDayService = {
       const profitData = {
         shop,
         date: todayStr,
-        totalSales,
+        // الخزنة تحسب totalSales - totalMasrofat، لذلك نرحّل صافي المبيع
+        // (إجمالي المبيع - مصروفات المرتجع والسداد)
+        totalSales: Number(totalSales) - Number(cashOnlyMasrof),
+        grossSales: Number(totalSales),
+        cashOnlyMasrofat: Number(cashOnlyMasrof),
         totalMasrofat: Number(netMasrof),
         returnedProfit,
         createdAt: Timestamp.now(),
@@ -104,12 +113,9 @@ export const closeDayService = {
       const profitRef = doc(collection(db, "dailyProfit"));
       batch.set(profitRef, profitData);
 
-      // Delete today's expenses
+      // Delete expenses (كل المصروفات المفتوحة اتحسبت في التقفيلة دي، حتى لو التقفيل بعد الساعة 12)
       masrofatSnapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        if (data.date === todayStr) {
-          batch.delete(docSnap.ref);
-        }
+        batch.delete(docSnap.ref);
       });
 
       // Helper function to calculate quantity

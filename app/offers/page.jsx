@@ -27,6 +27,7 @@ import { FaPlus, FaTrash, FaUndo } from "react-icons/fa";
 import { CiSearch } from "react-icons/ci";
 import { MdDriveFileRenameOutline } from "react-icons/md";
 import { GiMoneyStack } from "react-icons/gi";
+import { useSections } from "@/hooks/useSections";
 
 function OffersContent() {
   const { success, error: showError } = useNotification();
@@ -53,8 +54,26 @@ function OffersContent() {
   const [finalPrice, setFinalPrice] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // إضافة منتج جديد مباشرة من صفحة العروض
+  const emptyNewProduct = {
+    name: "",
+    buyPrice: "",
+    sellPrice: "",
+    finalPrice: "",
+    merchantName: "",
+    section: "",
+    category: "هدوم",
+    quantity: "",
+  };
+  const [showNewProductModal, setShowNewProductModal] = useState(false);
+  const [newProduct, setNewProduct] = useState(emptyNewProduct);
+  const [newColors, setNewColors] = useState([]); // [{ color, sizes: [{ size, qty }] }]
+  const [newColorName, setNewColorName] = useState("");
+  const [newSizeInputs, setNewSizeInputs] = useState({}); // { colorIndex: { size, qty } }
+
   const shop =
     typeof window !== "undefined" ? localStorage.getItem("shop") : "";
+  const { sections } = useSections(shop);
 
   // التحقق من الصلاحيات
   useEffect(() => {
@@ -213,6 +232,150 @@ function OffersContent() {
       setIsProcessing(false);
     }
   }, [selectedProduct, sellPrice, finalPrice, shop, success, showError]);
+
+  // ===== إضافة منتج جديد مباشرة في العروض =====
+  const resetNewProductForm = useCallback(() => {
+    setNewProduct(emptyNewProduct);
+    setNewColors([]);
+    setNewColorName("");
+    setNewSizeInputs({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleAddNewColor = useCallback(() => {
+    const name = newColorName.trim();
+    if (!name) return;
+    if (newColors.some((c) => c.color.toLowerCase() === name.toLowerCase())) {
+      showError("هذا اللون موجود بالفعل");
+      return;
+    }
+    setNewColors((prev) => [...prev, { color: name, sizes: [] }]);
+    setNewColorName("");
+  }, [newColorName, newColors, showError]);
+
+  const handleAddSizeToColor = useCallback(
+    (colorIndex) => {
+      const input = newSizeInputs[colorIndex] || {};
+      const size = (input.size || "").trim();
+      const qty = Number(input.qty || 0);
+      if (!size || qty <= 0) {
+        showError("يرجى إدخال المقاس وكمية أكبر من صفر");
+        return;
+      }
+      setNewColors((prev) =>
+        prev.map((c, i) => {
+          if (i !== colorIndex) return c;
+          const existing = c.sizes.find((s) => s.size === size);
+          return {
+            ...c,
+            sizes: existing
+              ? c.sizes.map((s) =>
+                  s.size === size ? { ...s, qty: Number(s.qty || 0) + qty } : s
+                )
+              : [...c.sizes, { size, qty }],
+          };
+        })
+      );
+      setNewSizeInputs((prev) => ({ ...prev, [colorIndex]: { size: "", qty: "" } }));
+    },
+    [newSizeInputs, showError]
+  );
+
+  const getNextProductCode = useCallback(async () => {
+    const [productsSnap, offersSnap] = await Promise.all([
+      getDocs(
+        query(
+          collection(db, "lacosteProducts"),
+          where("shop", "==", shop),
+          where("type", "==", "product")
+        )
+      ),
+      getDocs(query(collection(db, "offers"), where("shop", "==", shop))),
+    ]);
+    const codes = [...productsSnap.docs, ...offersSnap.docs]
+      .map((d) => Number(d.data().code))
+      .filter((c) => !isNaN(c) && c >= 1000);
+    return codes.length ? Math.max(...codes) + 1 : 1000;
+  }, [shop]);
+
+  const handleCreateNewOfferProduct = useCallback(async () => {
+    const buy = Number(newProduct.buyPrice);
+    const sell = Number(newProduct.sellPrice);
+    const fin = Number(newProduct.finalPrice);
+
+    if (!newProduct.name.trim()) return showError("يرجى إدخال اسم المنتج");
+    if (!buy || buy <= 0) return showError("يرجى إدخال سعر شراء صحيح");
+    if (!sell || sell <= 0) return showError("يرجى إدخال سعر بيع صحيح");
+    if (!fin || fin <= 0) return showError("يرجى إدخال سعر نهائي صحيح");
+    if (!shop) return showError("حدث خطأ: المتجر غير محدد");
+
+    const isAccessory = newProduct.category === "اكسسوار";
+    const cleanedColors = isAccessory
+      ? []
+      : newColors
+          .map((c) => ({
+            color: c.color,
+            sizes: c.sizes.filter((s) => Number(s.qty || 0) > 0),
+          }))
+          .filter((c) => c.sizes.length > 0);
+    const totalQty = isAccessory
+      ? Number(newProduct.quantity || 0)
+      : cleanedColors.reduce(
+          (t, c) => t + c.sizes.reduce((x, sz) => x + Number(sz.qty || 0), 0),
+          0
+        );
+
+    if (totalQty <= 0) {
+      showError(
+        isAccessory
+          ? "يرجى إدخال كمية أكبر من صفر"
+          : "يرجى إضافة لون ومقاس بكمية أكبر من صفر"
+      );
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const code = await getNextProductCode();
+      const productObj = {
+        code,
+        name: newProduct.name.trim(),
+        buyPrice: buy,
+        sellPrice: sell,
+        finalPrice: fin,
+        quantity: totalQty,
+        colors: cleanedColors.length > 0 ? cleanedColors : null,
+        sizeType: "",
+        category: newProduct.category || "",
+        section: newProduct.section || "",
+        merchantName: newProduct.merchantName.trim(),
+        date: Timestamp.now(),
+        shop,
+        type: "product",
+      };
+
+      // المنتج يتضاف في العروض، ويتسجل في الوارد زي أي منتج جديد
+      await addDoc(collection(db, "offers"), { ...productObj, isOffer: true });
+      await addDoc(collection(db, "wared"), productObj);
+
+      success(`✅ تم إضافة المنتج للعروض بنجاح (كود ${code})`);
+      setShowNewProductModal(false);
+      resetNewProductForm();
+    } catch (error) {
+      console.error("Error creating offer product:", error);
+      showError("حدث خطأ أثناء إضافة المنتج");
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [
+    newProduct,
+    newColors,
+    shop,
+    getNextProductCode,
+    resetNewProductForm,
+    success,
+    showError,
+  ]);
 
   // إرجاع منتج من العروض
   const handleReturnFromOffers = useCallback(async () => {
@@ -508,6 +671,18 @@ function OffersContent() {
                   <span>إضافة منتج للعروض</span>
                 </button>
               )}
+              {isAdmin && (
+                <button
+                  className={styles.addStockBtn}
+                  onClick={() => {
+                    resetNewProductForm();
+                    setShowNewProductModal(true);
+                  }}
+                >
+                  <FaPlus className={styles.addIcon} />
+                  <span>منتج جديد في العروض</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -685,7 +860,7 @@ function OffersContent() {
                                     setOfferToReturn(offer);
                                     setShowReturnModal(true);
                                   }}
-                                  title="إرجاع"
+                                  title="ترحيل إلى المنتجات"
                                 >
                                   <FaUndo />
                                 </button>
@@ -829,6 +1004,239 @@ function OffersContent() {
         </div>
       )}
 
+      {/* Modal إضافة منتج جديد مباشرة في العروض */}
+      {showNewProductModal && (
+        <div
+          className={styles.modalOverlay}
+          onClick={() => {
+            if (!isProcessing) {
+              setShowNewProductModal(false);
+              resetNewProductForm();
+            }
+          }}
+        >
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <h3>إضافة منتج جديد في العروض</h3>
+            <div className={styles.modalContent}>
+              <div className={styles.inputGroup}>
+                <label>اسم المنتج</label>
+                <input
+                  type="text"
+                  className={styles.modalInput}
+                  value={newProduct.name}
+                  onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                  placeholder="اسم المنتج"
+                  disabled={isProcessing}
+                />
+              </div>
+              <div className={styles.inputGroup}>
+                <label>سعر الشراء</label>
+                <input
+                  type="number"
+                  className={styles.modalInput}
+                  value={newProduct.buyPrice}
+                  onChange={(e) => setNewProduct({ ...newProduct, buyPrice: e.target.value })}
+                  placeholder="سعر الشراء"
+                  min="0"
+                  disabled={isProcessing}
+                />
+              </div>
+              <div className={styles.inputGroup}>
+                <label>سعر البيع</label>
+                <input
+                  type="number"
+                  className={styles.modalInput}
+                  value={newProduct.sellPrice}
+                  onChange={(e) => setNewProduct({ ...newProduct, sellPrice: e.target.value })}
+                  placeholder="سعر البيع"
+                  min="0"
+                  disabled={isProcessing}
+                />
+              </div>
+              <div className={styles.inputGroup}>
+                <label>السعر النهائي</label>
+                <input
+                  type="number"
+                  className={styles.modalInput}
+                  value={newProduct.finalPrice}
+                  onChange={(e) => setNewProduct({ ...newProduct, finalPrice: e.target.value })}
+                  placeholder="السعر النهائي"
+                  min="0"
+                  disabled={isProcessing}
+                />
+              </div>
+              <div className={styles.inputGroup}>
+                <label>اسم التاجر</label>
+                <input
+                  type="text"
+                  className={styles.modalInput}
+                  value={newProduct.merchantName}
+                  onChange={(e) => setNewProduct({ ...newProduct, merchantName: e.target.value })}
+                  placeholder="اسم التاجر"
+                  disabled={isProcessing}
+                />
+              </div>
+              <div className={styles.inputGroup}>
+                <label>القسم</label>
+                <select
+                  className={styles.modalInput}
+                  value={newProduct.section}
+                  onChange={(e) => setNewProduct({ ...newProduct, section: e.target.value })}
+                  disabled={isProcessing}
+                >
+                  <option value="">اختر القسم</option>
+                  {sections.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className={styles.inputGroup}>
+                <label>الصنف</label>
+                <select
+                  className={styles.modalInput}
+                  value={newProduct.category}
+                  onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
+                  disabled={isProcessing}
+                >
+                  <option value="هدوم">هدوم</option>
+                  <option value="احذية">احذية</option>
+                  <option value="اكسسوار">اكسسوار</option>
+                </select>
+              </div>
+
+              {newProduct.category === "اكسسوار" ? (
+                <div className={styles.inputGroup}>
+                  <label>الكمية</label>
+                  <input
+                    type="number"
+                    className={styles.modalInput}
+                    value={newProduct.quantity}
+                    onChange={(e) => setNewProduct({ ...newProduct, quantity: e.target.value })}
+                    placeholder="الكمية"
+                    min="1"
+                    disabled={isProcessing}
+                  />
+                </div>
+              ) : (
+                <div className={styles.inputGroup}>
+                  <label>الألوان والمقاسات</label>
+                  <div className={styles.searchInputGroup}>
+                    <input
+                      type="text"
+                      className={styles.modalInput}
+                      value={newColorName}
+                      onChange={(e) => setNewColorName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleAddNewColor()}
+                      placeholder="اسم اللون"
+                      disabled={isProcessing}
+                    />
+                    <button className={styles.searchBtn} onClick={handleAddNewColor} disabled={isProcessing}>
+                      <FaPlus /> لون
+                    </button>
+                  </div>
+
+                  {newColors.map((c, ci) => (
+                    <div key={c.color} className={styles.productInfo}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <strong>{c.color}</strong>
+                        <button
+                          className={styles.deleteBtn}
+                          onClick={() => setNewColors((prev) => prev.filter((_, i) => i !== ci))}
+                          title="حذف اللون"
+                          disabled={isProcessing}
+                        >
+                          <FaTrash />
+                        </button>
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", margin: "8px 0" }}>
+                        {c.sizes.length === 0 && <span>لا توجد مقاسات</span>}
+                        {c.sizes.map((sz) => (
+                          <span
+                            key={sz.size}
+                            className={styles.colorTag}
+                            style={{ cursor: "pointer" }}
+                            title="اضغط للحذف"
+                            onClick={() =>
+                              setNewColors((prev) =>
+                                prev.map((col, i) =>
+                                  i === ci
+                                    ? { ...col, sizes: col.sizes.filter((x) => x.size !== sz.size) }
+                                    : col
+                                )
+                              )
+                            }
+                          >
+                            {sz.size}: {sz.qty} ✕
+                          </span>
+                        ))}
+                      </div>
+                      <div className={styles.searchInputGroup}>
+                        <input
+                          type="text"
+                          className={styles.modalInput}
+                          placeholder="المقاس"
+                          value={newSizeInputs[ci]?.size || ""}
+                          onChange={(e) =>
+                            setNewSizeInputs((prev) => ({
+                              ...prev,
+                              [ci]: { ...prev[ci], size: e.target.value },
+                            }))
+                          }
+                          disabled={isProcessing}
+                        />
+                        <input
+                          type="number"
+                          className={styles.modalInput}
+                          placeholder="الكمية"
+                          min="1"
+                          value={newSizeInputs[ci]?.qty || ""}
+                          onChange={(e) =>
+                            setNewSizeInputs((prev) => ({
+                              ...prev,
+                              [ci]: { ...prev[ci], qty: e.target.value },
+                            }))
+                          }
+                          onKeyDown={(e) => e.key === "Enter" && handleAddSizeToColor(ci)}
+                          disabled={isProcessing}
+                        />
+                        <button
+                          className={styles.searchBtn}
+                          onClick={() => handleAddSizeToColor(ci)}
+                          disabled={isProcessing}
+                        >
+                          <FaPlus />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className={styles.modalActions}>
+              <button
+                className={styles.cancelBtn}
+                onClick={() => {
+                  setShowNewProductModal(false);
+                  resetNewProductForm();
+                }}
+                disabled={isProcessing}
+              >
+                إلغاء
+              </button>
+              <button
+                className={styles.confirmBtn}
+                onClick={handleCreateNewOfferProduct}
+                disabled={isProcessing}
+              >
+                {isProcessing ? "جاري الحفظ..." : "إضافة"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal تأكيد الإرجاع */}
       <ConfirmModal
         isOpen={showReturnModal}
@@ -837,7 +1245,7 @@ function OffersContent() {
           setOfferToReturn(null);
         }}
         title="تأكيد الإرجاع"
-        message="هل أنت متأكد أنك تريد إرجاع هذا المنتج إلى المنتجات العادية؟"
+        message="هل أنت متأكد أنك تريد ترحيل هذا المنتج إلى صفحة المنتجات؟"
         onConfirm={handleReturnFromOffers}
         confirmText="إرجاع"
         cancelText="إلغاء"
