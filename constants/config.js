@@ -15,7 +15,8 @@ export const PERMISSIONS = {
   VIEW_PROFIT: (userName) => CONFIG.ADMIN_EMAILS.includes(userName),
   RETURN_PRODUCTS: (userName) => CONFIG.ADMIN_EMAILS.includes(userName),
   EDIT_PRICES: (userName) => CONFIG.ADMIN_EMAILS.includes(userName),
-  MANAGE_OFFERS: (userName) => CONFIG.ADMIN_EMAILS.includes(userName)
+  MANAGE_OFFERS: (userName) => CONFIG.ADMIN_EMAILS.includes(userName),
+  VIEW_TOP_EMPLOYEE: (userName) => CONFIG.ADMIN_EMAILS.includes(userName)
 };
 
 

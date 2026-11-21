@@ -16,7 +16,7 @@ import { useOffers } from "@/hooks/useOffers";
 import { useInvoices } from "@/hooks/useInvoices";
 import { useEmployees } from "@/hooks/useEmployees";
 import { useMasrofat } from "@/hooks/useMasrofat";
-import { CONFIG } from "@/constants/config";
+import { CONFIG, PERMISSIONS } from "@/constants/config";
 import { calculateFinalTotal } from "@/utils/cartHelpers";
 import { invoiceService } from "./services/invoiceService";
 import { stockService } from "./services/stockService";
@@ -724,9 +724,10 @@ function MainContent() {
   // Handle top employee click
   // الإحصائيات تُحسب داخل المودال من كل فواتير dailySales (حتى تقفيل اليوم وليس حتى الساعة 12)
   const handleTopEmployeeClick = useCallback((employeeName) => {
+    if (!PERMISSIONS.VIEW_TOP_EMPLOYEE(userName)) return;
     setSelectedEmployeeStats({ name: employeeName });
     setShowEmployeeStatsModal(true);
-  }, []);
+  }, [userName]);
 
   const finalTotal = calculateFinalTotal(subtotal, appliedDiscount);
 
@@ -912,7 +913,7 @@ function MainContent() {
       />
 
       <EmployeeStatsModal
-        isOpen={showEmployeeStatsModal}
+        isOpen={showEmployeeStatsModal && PERMISSIONS.VIEW_TOP_EMPLOYEE(userName)}
         onClose={() => {
           setShowEmployeeStatsModal(false);
           setSelectedEmployeeStats(null);

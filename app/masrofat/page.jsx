@@ -178,7 +178,7 @@ function MasrofatContent() {
 
     if (masrofValue > availableAmount) {
       showError(
-        `❌ الرصيد الحالي غير كافٍ لإضافة هذا المصروف.\nالرصيد المتاح: ${availableAmount.toFixed(2)}\nالمبلغ المطلوب: ${masrofValue.toFixed(2)}`
+        "❌ الرصيد الحالي غير كافٍ لإضافة هذا المصروف."
       );
       return;
     }
@@ -245,7 +245,7 @@ function MasrofatContent() {
 
     if (newMasrof > availableAmount) {
       showError(
-        `❌ الرصيد الحالي غير كافٍ.\nالرصيد المتاح: ${availableAmount.toFixed(2)}\nالمبلغ المطلوب بعد التعديل: ${newMasrof.toFixed(2)}`
+        "❌ الرصيد الحالي غير كافٍ."
       );
       return;
     }
