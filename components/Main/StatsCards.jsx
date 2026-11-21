@@ -55,6 +55,8 @@ export default function StatsCards({
   }, [invoices, totalMasrofat, totalMasrofatWithReturn]);
 
   const canViewProfit = PERMISSIONS.VIEW_PROFIT(userName);
+  // أنشط موظف وإحصائيات الموظفين للمستخدمين المسجلين في CONFIG فقط
+  const canViewTopEmployee = PERMISSIONS.VIEW_TOP_EMPLOYEE(userName);
 
   return (
     <div className={styles.summaryCards}>
@@ -99,6 +101,7 @@ export default function StatsCards({
         </>
       )}
       
+      {canViewTopEmployee && (
       <div 
         className={styles.summaryCard}
         style={{ cursor: "pointer" }}
@@ -114,6 +117,7 @@ export default function StatsCards({
         <span className={styles.summaryLabel}>أنشط موظف</span>
         <span className={styles.summaryValue}>{isHidden ? "****" : stats.topEmployee}</span>
       </div>
+      )}
     </div>
   );
 }
